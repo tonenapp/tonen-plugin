@@ -1,0 +1,29 @@
+# Keeps this repository the plugin tonen.app serves: every hour, and on demand.
+# Tonen publishes nothing here itself; this only reads tonen.app's public files.
+name: Copy the plugin from tonen.app
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: scripts/sync.sh https://tonen.app
+      - name: Commit what changed
+        run: |
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          version="$(jq -r .version .claude-plugin/plugin.json)"
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Tonen's plugin $version, as tonen.app serves it"
+          git push
