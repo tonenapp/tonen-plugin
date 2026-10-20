@@ -1,0 +1,12 @@
+{
+  "name": "tonen",
+  "version": "0.1.0+7bee0ade8b01",
+  "description": "Comments on your running site, pinned to its elements: Claude fixes them, answers @Claude in them, and sets Tonen up.",
+  "author": {
+    "name": "Tonen",
+    "url": "https://tonen.app"
+  },
+  "homepage": "https://tonen.app",
+  "license": "Apache-2.0",
+  "types": "./types/index.d.ts"
+}

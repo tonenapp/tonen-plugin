@@ -1,0 +1,16 @@
+{
+  "modules": ["./register.tsx"],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__(plugin_tonen_)?tonen__(projects|wait_for_mention|stop_listening)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"Tonen reads your projects and waits for your mentions\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tonen": {
+      "type": "http",
+      "url": "https://tonen.app/mcp",
+      "headers": {
+        "x-tonen-client": "claude-plugin"
+      }
+    }
+  }
+}
