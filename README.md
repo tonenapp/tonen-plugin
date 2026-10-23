@@ -40,14 +40,21 @@ Connectors tab.
   it changes anything. A line above the prompt says when it listens and how
   many comments are left to fix. Ask Claude to stop listening, and it does. Listening needs Claude Code; Claude's other apps
   read and answer comments when you ask.
+- **Your dev server, shared.** In Claude Code on macOS or Linux, ask Claude to
+  share your site's dev server (say, localhost:5173): your project's members
+  and reviewers then open it from anywhere and comment on it, while your
+  session runs. The first time, Claude Code asks you, downloads Tonen's helper
+  (the Tonen CLI) into `~/.tonen/bin` and checks it, and your browser opens
+  for you to sign in and confirm. A line above the prompt shows the address
+  and how many people viewed it. Ask Claude to stop sharing, and it does.
 - **`/tonen:remove`** takes Tonen out of your site.
 
 ## What it may do without asking
 
 Listening calls two of Tonen's tools, `projects` and `wait_for_mention`, so the
 plugin lets those two run without a permission prompt, and its own
-`stop_listening`. Every other tool asks as
-usual. Comment text is treated as a request about your site, never as
+`stop_listening`, `share_local_site` and `stop_sharing` (sharing asks you
+itself, for each port it hasn't shared in that session). Every other tool asks as usual. Comment text is treated as a request about your site, never as
 instructions to Claude.
 
 ## Remove it

@@ -1,5 +1,16 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
+import { shareArgsOf, sharingLine, stopArgsOf } from "./local-site.ts";
+import {
+  registerSharing,
+  SHARE,
+  shareLocalSite,
+  sharingSection,
+  STOP_SHARING,
+  stopAll,
+  stopSharing,
+} from "./share.ts";
+import { hand, handUnsent, showStatus } from "./status.ts";
 import {
   type Answer,
   backgroundsTooSoon,
@@ -30,6 +41,10 @@ import {
 // the plugin and leave listening out of the prompt. The mention reaches the
 // model framed as the plugin's message, never as the member's own words: it
 // was typed on a website.
+//
+// It also shares the member's dev server as a project's local site when
+// Claude calls `share_local_site` (share.ts, which runs the Tonen CLI's `tonen
+// share`); the band shows each one shared.
 
 /** The server's key in .mcp.json. */
 const SERVER = "tonen";
@@ -48,16 +63,15 @@ const REFUSED_RETRY_MS = 5 * 60_000;
 
 // What the plugin listens on: one project, or all of the member's
 // (`projectId` undefined), and which loop is the current one, so a new
-// target ends the old loop at its next turn. Mentions the session refused
-// for now (the member pressed Esc), handed over again when its next turn
-// ends. A reload of the module starts all of it over, as it cancels its
-// timers.
+// target ends the old loop at its next turn. A reload of the module starts
+// it over, as it cancels its timers.
 let target: { projectId: string | undefined; loop: number } | undefined;
 let loops = 0;
-const unsent: string[] = [];
 
 // What the band draws (types/index.d.ts): set while listening, null otherwise.
 const band = atom({ plugin: "tonen", key: "band" } as const, null);
+// The local sites shared, one band line each, which share.ts writes.
+const sharing = atom({ plugin: "tonen", key: "sharing" } as const, []);
 
 export const register: Register = (on) => {
   on("session.start", async ($, e, next) => {
@@ -66,6 +80,8 @@ export const register: Register = (on) => {
     // before is only true once listening starts again.
     await update($, band, () => null);
     if (!e.isInteractive) return started;
+    // Sharing asks the person first, so it's only for a session with one.
+    await registerSharing($);
     await $.tool.register({
       name: STOP,
       description:
@@ -84,12 +100,26 @@ export const register: Register = (on) => {
     return started;
   });
 
+  // The plugin's own tools answer here: share_local_site and stop_sharing
+  // (share.ts), and stop_listening.
+  //
   // Claude asked to listen (the member said so, or a prompt did): the plugin
   // listens in the background instead, on what Claude asked for, and answers
   // at once, so the session stays free. Only where the plugin would listen
   // itself: with a setting that backgrounds its calls too soon, Claude's own
   // call goes through as ever.
   on("tool.call", async ($, e, next) => {
+    if (e.tool === `mcp__tonen__${SHARE}`) {
+      const args = shareArgsOf(e);
+      if (typeof args === "string") return { deny: args };
+      const text = await shareLocalSite($, args.port, args.projectId, next.signal);
+      return { result: [{ type: "text", text }] };
+    }
+    if (e.tool === `mcp__tonen__${STOP_SHARING}`) {
+      const args = stopArgsOf(e);
+      if (typeof args === "string") return { deny: args };
+      return { result: [{ type: "text", text: stopSharing($, args.port) }] };
+    }
     if (e.tool === `mcp__tonen__${STOP}`) {
       await stopListening($);
       return {
@@ -123,14 +153,20 @@ export const register: Register = (on) => {
     };
   });
 
-  // Claude learns the plugin listens, so it never calls wait_for_mention or
-  // asks its member to run /mcp__tonen__listen.
+  // Claude learns what the plugin shares (`sharingSection`), so it doesn't
+  // run tonen share itself, and that it listens, so it never calls
+  // wait_for_mention or asks its member to run /mcp__tonen__listen.
   on("prompt.compose", async ($, e, next) => {
     const composed = await next(e);
-    if (!target) return composed;
+    const shared = sharingSection();
+    const sections = shared
+      ? [...composed.sections, { id: "tonen:sharing", scope: "session" as const, text: shared }]
+      : composed.sections;
+    if (!target) return { ...composed, sections };
     return {
+      ...composed,
       sections: [
-        ...composed.sections,
+        ...sections,
         {
           id: "tonen:listening",
           scope: "session",
@@ -140,17 +176,32 @@ export const register: Register = (on) => {
     };
   });
 
+  // The session's end stops what it shares; a /clear doesn't (the band and
+  // the next conversation's prompt still say it's shared).
+  on("session.end", async ($, e, next) => {
+    if (e.reason !== "clear") stopAll($);
+    return next(e);
+  });
+
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
-    for (const prompt of unsent.splice(0)) void hand($, prompt);
+    handUnsent($);
     return completed;
   });
 
   on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
     const now = await read($, band);
-    if (now === null || e.props.hasSurvey) return next(e);
-    const { Text } = $.ui.resolve(e);
-    return <Text dimColor>{listeningLine(now.toFix)}</Text>;
+    const shared = await read($, sharing);
+    if ((now === null && shared.length === 0) || e.props.hasSurvey) return next(e);
+    const { Box, Text } = $.ui.resolve(e);
+    return (
+      <Box flexDirection="column">
+        {now === null ? null : <Text dimColor>{listeningLine(now.toFix)}</Text>}
+        {shared.map((row) => (
+          <Text dimColor>{sharingLine(row)}</Text>
+        ))}
+      </Box>
+    );
   });
 };
 
@@ -162,14 +213,7 @@ function where(projectId: string | undefined) {
 // Says what needs the member, in the status line (⚠), and takes the band down.
 async function warn($: EngineInterface, text: string) {
   await update($, band, () => null);
-  $.ui.status(text);
-}
-
-// Hands a mention to the session: a turn of its own once it's idle. Kept for
-// the next turn's end when the session refuses it now.
-async function hand($: EngineInterface, prompt: string) {
-  const submitted = await $.prompt.submit({ text: prompt });
-  if (submitted.drop !== undefined) unsent.push(prompt);
+  showStatus($, "listen", text);
 }
 
 // Listens on `projectId` (all of the member's projects when undefined) from
@@ -188,7 +232,7 @@ async function startListening($: EngineInterface, projectId: string | undefined)
 async function stopListening($: EngineInterface) {
   target = undefined;
   await update($, band, () => null);
-  $.ui.status(undefined);
+  showStatus($, "listen", undefined);
 }
 
 // Whether `projectId` is one of the member's projects. True when Tonen can't
@@ -224,7 +268,7 @@ async function start($: EngineInterface, candidates: readonly string[], failures
     $.clock.after(delayAfter(failures + 1), () => void start($, candidates, failures + 1));
     return;
   }
-  $.ui.status(undefined);
+  showStatus($, "listen", undefined);
   const project = ownProject(candidates, listed);
   if (project && !target) await startListening($, project);
 }
@@ -254,7 +298,7 @@ async function listen($: EngineInterface, loop: number, failures: number) {
   }
   const listed = projectId ? await projectsText($, tonen.server) : undefined;
   const counts = listed === undefined || !projectId ? undefined : countsIn(listed, projectId);
-  $.ui.status(undefined);
+  showStatus($, "listen", undefined);
   await update($, band, (was) => ({ toFix: counts?.toFix ?? was?.toFix ?? 0 }));
   let answer: Answer;
   try {
