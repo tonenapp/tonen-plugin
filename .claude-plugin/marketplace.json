@@ -9,7 +9,7 @@
     {
       "name": "tonen",
       "description": "Comments on your running site, pinned to its elements: Claude fixes them, answers @Claude in them, and sets Tonen up.",
-      "version": "0.1.0+d59049cf9a03",
+      "version": "0.1.0+f889bc634aca",
       "source": "./",
       "repository": "https://github.com/tonenapp/tonen-plugin"
     }

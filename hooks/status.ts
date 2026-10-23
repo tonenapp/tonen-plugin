@@ -7,7 +7,7 @@ import type { EngineInterface } from "claude-code";
 // what needs the person now, and one part's words never wipe out another's:
 // listening has one part, and each shared port its own.
 
-type Part = "listen" | `share:${number}`;
+type Part = "listen" | `cli:${number}` | `share:${number}`;
 const parts = new Map<Part, string>();
 
 /** Sets `part`'s words in the status line, or takes them down (`undefined`). */

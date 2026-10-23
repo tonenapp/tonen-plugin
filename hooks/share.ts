@@ -13,6 +13,7 @@ import {
   type Manifest,
   openWords,
   opensOn,
+  personWords,
   type Platform,
   platformOf,
   readLine,
@@ -74,7 +75,7 @@ type Stream = HookStream<ProcessSpawnChunk, ProcessSpawnResult>;
 type Pull = IteratorResult<ProcessSpawnChunk, ProcessSpawnResult>;
 
 /** The Tonen CLI on this computer, and the Tonen it talks to. */
-type Helper = { path: string; server: string; system: "darwin" | "linux" };
+export type Helper = { path: string; server: string; system: "darwin" | "linux" };
 
 /** One local site this session shares, and the `tonen` running for it. */
 type Share = Shared & {
@@ -358,7 +359,7 @@ export function sharingSection(): string | undefined {
  * its path, and what to download when it isn't there yet. An error says, in
  * words for Claude, why it can't be.
  */
-async function locate(
+export async function locate(
   $: EngineInterface,
 ): Promise<
   | { helper: Helper; download: (Manifest["platforms"][Platform] & { url: string }) | undefined }
@@ -424,7 +425,7 @@ async function locate(
  * leaves nothing behind. Undefined when it's in place; else why not, for
  * Claude.
  */
-async function download(
+export async function download(
   $: EngineInterface,
   helper: Helper,
   file: { url: string; sha256: string },
@@ -541,7 +542,9 @@ async function drive(
       await end(
         $,
         share,
-        share.last?.type === "error" ? share.last.message : "Tonen's sign-in didn't finish",
+        share.last?.type === "error"
+          ? personWords(share.last.code, share.last.message)
+          : "Tonen's sign-in didn't finish",
       );
       return "ended";
     }
@@ -826,7 +829,7 @@ async function publish($: EngineInterface) {
 /** The warnings so far, for Claude's answer. */
 const warned = (share: Share) => (share.warning ? ` Tonen warns: ${share.warning}.` : "");
 
-const megabytes = (bytes: number) => Math.max(1, Math.round(bytes / 1_000_000));
+export const megabytes = (bytes: number) => Math.max(1, Math.round(bytes / 1_000_000));
 
 const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
 

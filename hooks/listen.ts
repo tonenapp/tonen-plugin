@@ -38,6 +38,25 @@ export function projectsIn(grepOutput: string): string[] {
 }
 
 /**
+ * The project a repository's `tonen.json` names (`{"project": "proj_…"}`,
+ * which `tonen init` and `tonen link` write at its root), or undefined for
+ * a missing or unreadable one: it comes first among the candidates, before
+ * the script tags `git grep` finds.
+ */
+export function projectOfConfig(text: string | undefined): string | undefined {
+  if (text === undefined) return undefined;
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof json !== "object" || json === null || !("project" in json)) return undefined;
+  const id = json.project;
+  return typeof id === "string" && /^proj_[0-9A-Za-z_]{3,59}$/.test(id) ? id : undefined;
+}
+
+/**
  * The first of `candidates` that is one of the member's projects, as Tonen's
  * `projects` tool lists them, each line starting with its id ("proj_… · Name ·
  * sites: …"). A repository can hold another project's tag (a test fixture, an

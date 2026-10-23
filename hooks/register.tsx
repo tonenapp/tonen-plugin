@@ -1,5 +1,7 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
+import { registerCliTool, runCliTool } from "./cli.ts";
+import { CLI_TOOL } from "./cli-tool.ts";
 import { shareArgsOf, sharingLine, stopArgsOf } from "./local-site.ts";
 import {
   registerSharing,
@@ -21,6 +23,7 @@ import {
   looksLikeSite,
   ownProject,
   projectIdOf,
+  projectOfConfig,
   projectsIn,
   readAnswer,
 } from "./listen.ts";
@@ -82,6 +85,7 @@ export const register: Register = (on) => {
     if (!e.isInteractive) return started;
     // Sharing asks the person first, so it's only for a session with one.
     await registerSharing($);
+    await registerCliTool($);
     await $.tool.register({
       name: STOP,
       description:
@@ -109,6 +113,10 @@ export const register: Register = (on) => {
   // itself: with a setting that backgrounds its calls too soon, Claude's own
   // call goes through as ever.
   on("tool.call", async ($, e, next) => {
+    if (e.tool === `mcp__tonen__${CLI_TOOL}`) {
+      const text = await runCliTool($, e, next.signal);
+      return { result: [{ type: "text", text }] };
+    }
     if (e.tool === `mcp__tonen__${SHARE}`) {
       const args = shareArgsOf(e);
       if (typeof args === "string") return { deny: args };
@@ -363,13 +371,18 @@ async function projectsText($: EngineInterface, server: string): Promise<string 
 }
 
 /**
- * The Tonen projects this session's repository loads the bar for: its tracked
- * files' script tags. Empty outside a git repository, or in one without Tonen.
+ * The Tonen projects this session's repository names: its tonen.json first,
+ * then its tracked files' script tags. Empty in a folder without Tonen.
  */
 async function projectsHere($: EngineInterface): Promise<string[]> {
-  // The whole repository (`:/`), wherever in it the session started.
+  // tonen.json at the repository's root (the session's folder outside git),
+  // then the script tags in the whole repository (`:/`), wherever in it the
+  // session started.
+  const root = (await git($, ["rev-parse", "--show-toplevel"]))?.trim() ?? (await $.session.cwd());
+  const config = projectOfConfig(await $.fs.read(`${root}/tonen.json`).catch(() => undefined));
   const found = await git($, ["grep", "-h", "-o", "-I", "-E", TAG_PATTERN, "--", ":/"]);
-  return found === undefined ? [] : projectsIn(found);
+  const tagged = found === undefined ? [] : projectsIn(found);
+  return [...new Set([...(config ? [config] : []), ...tagged])];
 }
 
 // In a website's repository without Tonen, says once where to start, then

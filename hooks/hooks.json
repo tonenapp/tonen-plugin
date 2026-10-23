@@ -3,11 +3,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__(plugin_tonen_)?tonen__(projects|wait_for_mention|stop_listening|share_local_site|stop_sharing)",
+        "matcher": "mcp__(plugin_tonen_)?tonen__(projects|wait_for_mention|stop_listening|share_local_site|stop_sharing|tonen_cli)",
         "hooks": [
           {
             "type": "command",
-            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"Tonen reads your projects, waits for your mentions, and shares a local site after asking you\"}}'"
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"permissionDecisionReason\":\"Tonen reads your projects, waits for your mentions, runs its CLI for your errands (asking you in the browser for what only you may do), and shares a local site after asking you\"}}'"
           }
         ]
       }

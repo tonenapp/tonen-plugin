@@ -62,6 +62,9 @@ export const FINAL_ERRORS = [
   "expired",
   "confirm_failed",
   "upgrade_required",
+  // Only `tonen upgrade` ends with it, which the plugin never runs: it keeps
+  // its own tonen-<version> by cli.json.
+  "installed_elsewhere",
 ] as const;
 
 /** The platforms the CLI is built for, as its download's path names them: `CLI_PLATFORMS`. */
@@ -197,6 +200,35 @@ export type AfterExit =
   | { kind: "sign_in" }
   | { kind: "done"; why: string };
 
+// When the helper is too old for its Tonen (`upgrade_required`), or can't
+// read what its Tonen answered (`bad_answer`), the CLI's own words say
+// `tonen upgrade`. That updates the person's terminal tonen
+// (~/.tonen/bin/tonen) and never the helper, which is the version the
+// plugin's cli.json names: the plugin is what's old.
+
+/** What Claude hears then: how to update the plugin. */
+export const PLUGIN_TOO_OLD =
+  "Tonen's plugin carries an older Tonen CLI than its Tonen takes now: update the plugin (`claude plugin update tonen@tonen`, which you may run for your member), then they restart Claude Code. Their own terminal's tonen, if they use one, updates with `tonen upgrade`";
+
+/** The helper's `error` words for Claude (`tonen_cli`'s answer): its own, but when the plugin is what's old. */
+export function helperWords(code: string, message: string): string {
+  if (code === "upgrade_required") return `${PLUGIN_TOO_OLD}.`;
+  if (code === "bad_answer")
+    return `${message} The plugin may be older than its Tonen: ${PLUGIN_TOO_OLD}.`;
+  return message;
+}
+
+/** The same for the person, in the status line: no command to run. */
+export function personWords(code: string, message: string): string {
+  if (code === "upgrade_required") {
+    return "Tonen's plugin is older than Tonen now: ask Claude to update it, then restart Claude Code";
+  }
+  if (code === "bad_answer") {
+    return "Tonen answered in a way Tonen's plugin can't read: ask Claude to update the plugin, then restart Claude Code";
+  }
+  return message;
+}
+
 export function afterExit(last: Line | undefined, port: number): AfterExit {
   if (last?.type === "closed") {
     switch (last.reason) {
@@ -227,7 +259,9 @@ export function afterExit(last: Line | undefined, port: number): AfterExit {
     }
   }
   if (last?.type === "error") {
-    if (oneOf(PASSING_ERRORS, last.code)) return { kind: "again", why: last.message };
+    if (oneOf(PASSING_ERRORS, last.code)) {
+      return { kind: "again", why: personWords(last.code, last.message) };
+    }
     const code = oneOf(FINAL_ERRORS, last.code);
     if (code === "not_signed_in" || code === "signed_out") return { kind: "sign_in" };
     // The CLI's own words say to run it with --take-over, which the plugin
@@ -238,11 +272,12 @@ export function afterExit(last: Line | undefined, port: number): AfterExit {
         why: `another computer of yours shares this project's local site now: stop it there, then ask Claude to share localhost:${port} again`,
       };
     }
-    // Every other final code ends the share in the CLI's own words, and so
+    // Every other final code ends the share in the CLI's own words (but a
+    // plugin that's too old, `personWords`), and so
     // does a code that isn't the CLI's: the plugin's own `start` (the helper
     // didn't run, and won't the next time either), or one from a newer CLI,
     // which ends the share rather than start it again for good.
-    return { kind: "done", why: last.message };
+    return { kind: "done", why: personWords(last.code, last.message) };
   }
   // No last line: it crashed or something killed it. Try again.
   return { kind: "again", why: "tonen share stopped" };
@@ -418,7 +453,7 @@ const PORT_RANGE = "The port is a whole number from 1 to 65535.";
 const portOf = (value: unknown) =>
   isCount(value) && value >= 1 && value <= 65535 ? value : undefined;
 
-/** The band's line for one shared local site: "Sharing localhost:5173 · https://p-….tonen.site · 0 viewers". */
+/** The band's line for one shared local site: "Sharing localhost:5173 · https://happy-hobbit.tonen.site · 0 viewers". */
 export function sharingLine(shared: Shared): string {
   const parts = [`Sharing localhost:${shared.port}`];
   if (shared.address === null) parts.push("starting");
