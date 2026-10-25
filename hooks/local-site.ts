@@ -219,6 +219,16 @@ export type AfterExit =
 export const PLUGIN_TOO_OLD =
   "Tonen's plugin carries an older Tonen CLI than its Tonen takes now: update the plugin (`claude plugin update tonen@tonen`, which you may run for your member), then they restart Claude Code. Their own terminal's tonen, if they use one, updates with `tonen upgrade`";
 
+/**
+ * Whether a download of the helper failed because its Tonen no longer serves
+ * that version: curl's and wget's words for a 404 (curl's exit for it differs
+ * between versions, 22 or 56). Web serves only its current release, so the
+ * plugin is what's old.
+ */
+export function goneFromServer(exitCode: number, stderr: string): boolean {
+  return exitCode !== 0 && /(returned error: |ERROR )404\b/.test(stderr);
+}
+
 /** The helper's `error` words for Claude (`tonen_cli`'s answer): its own, but when the plugin is what's old. */
 export function helperWords(code: string, message: string): string {
   if (code === "upgrade_required") return `${PLUGIN_TOO_OLD}.`;

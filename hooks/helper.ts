@@ -1,7 +1,9 @@
 import type { EngineInterface } from "claude-code";
 import {
+  goneFromServer,
   type Manifest,
   opensOn,
+  PLUGIN_TOO_OLD,
   type Platform,
   platformOf,
   readManifest,
@@ -120,6 +122,9 @@ export async function download(
     );
     if (fetched.exitCode === 127)
       fetched = await run($, ["wget", "-q", "-T", "300", "-O", tmp, file.url], 320_000);
+    if (goneFromServer(fetched.exitCode, fetched.stderr)) {
+      return `${helper.server} no longer serves the Tonen CLI this copy of the plugin names. ${PLUGIN_TOO_OLD}.`;
+    }
     if (fetched.exitCode !== 0) {
       return `Downloading Tonen's helper from ${file.url} failed (${firstLine(fetched.stderr) || `exit ${fetched.exitCode}`}). Check the connection and ask again.`;
     }
