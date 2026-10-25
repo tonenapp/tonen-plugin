@@ -57,7 +57,7 @@ export const CLI_TOOL_SCHEMA = {
       type: "string",
       enum: ACCESS_CHOICES,
       description:
-        "init, sites_add: who can comment on the address, if it's new. Ask your member once: do people outside your team use this address for real? Yes: `people` (only the people your member adds). Staging, a prototype: `anyone` (anyone who opens it, after confirming their email). `link` (anyone with the project's share link) only when your member asks for it. Left out: `people`, unless it expires or is on this computer.",
+        "init, sites_add: who can comment on the address, if it's new. Ask your member once: do people outside your team use this address for real? Yes: `people` (only the people your member adds). Staging, a prototype: `anyone` (anyone who opens it, after confirming their email). `link` (anyone with the project's share link) only when your member asks for it. Left out: `people`, unless it is on this computer.",
     },
     framework: {
       type: "string",
@@ -65,13 +65,6 @@ export const CLI_TOOL_SCHEMA = {
         "init: what the site is built with (sveltekit, next-app, vite…); left out, read from the files.",
     },
     url: { type: "string", description: "sites_add: the address." },
-    expires: {
-      type: "integer",
-      minimum: 1,
-      maximum: 365,
-      description:
-        "sites_add: the address expires after this many days (a pull request's preview).",
-    },
     all: { type: "boolean", description: "comments: resolved ones too." },
     page: { type: "string", description: "comments: only those on this page's path (/pricing)." },
     limit: {
@@ -187,7 +180,6 @@ export function argvOf(input: unknown): { command: CliCommand; argv: string[] } 
       break;
     case "sites_add": {
       argv.unshift("sites", "add");
-      valued("expires", take(whole(input, "expires", 1, 365)));
       valued("access", take(access(input)));
       const url = take(text(input, "url", true));
       if (url !== undefined) argv.push("--", url);
@@ -259,7 +251,7 @@ export function answerOf(command: CliCommand, result: unknown): string {
     reviewers_add:
       "Tonen added the reviewers your member confirmed and mailed each a link to the site:",
     share_link:
-      "The project's share link, shown once: whoever opens it reads the comments and signs in with their email to comment. Give it to your member to send, and tell them the site it opens (`opens`). When `opens` is null it opens no site yet: tell them so, and that a member sets a site to Anyone with the share link on the project's Setup tab first:",
+      "The project's share link, shown once: whoever opens it reads the comments left on the site it opens, and signs in with their email to comment. Give it to your member to send, and tell them the site it opens (`opens`). When `opens` is null it opens no site yet: tell them so, and that a member sets a site to Anyone with the share link on the project's Setup tab first:",
   };
   return `${lead[command]} ${JSON.stringify(fields)}`;
 }

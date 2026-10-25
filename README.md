@@ -39,7 +39,8 @@ Connectors tab.
 
 - **`/tonen:setup`** adds Tonen to your site: a project, named in a small
   `tonen.json` your team commits, Tonen's script tag in your pages (on
-  localhost too, so a teammate who runs the site sees the bar), who can
+  localhost too, so a teammate who runs the site sees the bar, where
+  your own comments on localhost stay yours), who can
   comment on each address, which Claude asks you, your confirm in the
   browser of each deployed address, and your dev server shared so people
   comment on it from anywhere. It also adds Tonen to the repository's
