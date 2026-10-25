@@ -1,6 +1,6 @@
 {
   "name": "tonen",
-  "version": "0.1.0+8294aeff95ba",
+  "version": "0.1.0+5425e82b0f6a",
   "description": "Comments on your running site, pinned to its elements: Claude fixes them, answers @Claude in them, and sets Tonen up.",
   "author": {
     "name": "Tonen",

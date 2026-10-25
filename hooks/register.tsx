@@ -1,5 +1,6 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
+import { offerAutoUpdate } from "./auto-update.ts";
 import { registerCliTool, runCliTool } from "./cli.ts";
 import { CLI_TOOL } from "./cli-tool.ts";
 import { shareArgsOf, sharingLine, stopArgsOf } from "./local-site.ts";
@@ -70,6 +71,9 @@ const REFUSED_RETRY_MS = 5 * 60_000;
 // it over, as it cancels its timers.
 let target: { projectId: string | undefined; loop: number } | undefined;
 let loops = 0;
+// Whether this session may still ask about the plugin's updates: an
+// interactive one, once, after its first turn (auto-update.ts).
+let mayOfferUpdates = false;
 
 // What the band draws (types/index.d.ts): set while listening, null otherwise.
 const band = atom({ plugin: "tonen", key: "band" } as const, null);
@@ -91,6 +95,7 @@ export const register: Register = (on) => {
       description:
         "Stops Tonen's plugin listening for your member's mentions (@Claude) in this session. Call it when your member asks you to stop listening.",
     });
+    mayOfferUpdates = true;
     const candidates = await projectsHere($);
     if (candidates.length === 0) {
       await offerSetup($);
@@ -194,6 +199,10 @@ export const register: Register = (on) => {
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     handUnsent($);
+    if (mayOfferUpdates && e.agentId === undefined) {
+      mayOfferUpdates = false;
+      $.clock.after(0, () => void offerAutoUpdate($));
+    }
     return completed;
   });
 

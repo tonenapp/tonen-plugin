@@ -13,6 +13,11 @@ claude plugin marketplace add tonenapp/tonen-plugin
 claude plugin install tonen@tonen
 ```
 
+In your first session the plugin asks whether Claude Code may keep it up
+to date by itself. Say yes and it updates in the background, as Anthropic's
+own plugins do. Later you can turn that off under `/plugin`, Marketplaces,
+`tonen`.
+
 Then open your site's folder in Claude Code and say what you want, in your
 own words: "let my client comment on this site". Claude sets it up, shares
 your dev server, and opens your browser when Tonen needs you to sign in or
