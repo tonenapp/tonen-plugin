@@ -1,21 +1,21 @@
 {
-  "version": "0.1.0+8a7b2863d1e0",
+  "version": "0.1.0+5f188c6ac16d",
   "platforms": {
     "darwin-arm64": {
-      "sha256": "3b99dc8f4db570b3217a7e73d51304379ae827651bc3de802f244992e510643d",
-      "size": 9679144
+      "sha256": "7cfdcf81e504cb54c455495ef4f5d55cdf9e3e48caa0552b9861aa1c506008f0",
+      "size": 9734184
     },
     "darwin-x86_64": {
-      "sha256": "3ef7990b99ecb99cdd90eb0aca37c9158354df56c61c5d93cad007f9d0f4761e",
-      "size": 10062728
+      "sha256": "169b36db4c67166216897d88c79eea58b6001640b003ec53d6e371526cf5850b",
+      "size": 10139836
     },
     "linux-x86_64": {
-      "sha256": "289d536a33e1340f7c239730479c8ba7de0bbf4c4787903f422f0ee833734b81",
-      "size": 7949208
+      "sha256": "b6c000d2e989345900f839b44d152008bcc3441393c857e11543ecb6f414f2b5",
+      "size": 7993216
     },
     "linux-arm64": {
-      "sha256": "7cc2a9289d09e1682f2e4d9b08fc54e4858824c4c789f7cbef6e9b554db5ff09",
-      "size": 7158832
+      "sha256": "2818c6f345b0614a2cf02de3f70c23bf028e4c066416de83e21d8d7520275702",
+      "size": 7188088
     }
   }
 }

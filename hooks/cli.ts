@@ -13,15 +13,15 @@ import {
   commandLine,
   errorOf,
 } from "./cli-tool.ts";
-import { helperWords, LineSplitter, opensOn, readLine } from "./local-site.ts";
-import { download, type Helper, locate, megabytes } from "./share.ts";
+import { download, type Helper, HELPER_WAIT_MS, locate, megabytes, openPage } from "./helper.ts";
+import { helperWords, LineSplitter, readLine } from "./local-site.ts";
 import { hand, showStatus } from "./status.ts";
 
 // `tonen_cli`: Claude runs the Tonen CLI for its member's errands (setting a
 // site up, its sites, its reviewers, its share link), with `--json`, through
 // the plugin rather than a shell: no PATH to find, no permission prompt for
 // each call, and the CLI exactly as the plugin's cli.json names it, checked
-// as `share_local_site` checks it (share.ts). cli-tool.ts holds what Claude
+// as `share_local_site` checks it (helper.ts). cli-tool.ts holds what Claude
 // may ask and how its answer reads.
 //
 // The CLI's `open` lines open the browser, on this Tonen only: its sign-in
@@ -29,9 +29,6 @@ import { hand, showStatus } from "./status.ts";
 // page for what only a person may do, which is the security boundary.
 // Claude waits up to 100 s; past that the plugin hands it the answer in a
 // message once the person is done in the browser.
-
-/** How long Claude's call waits, under Claude Code's two minutes. */
-const WAIT_MS = 100_000;
 
 type Stream = HookStream<ProcessSpawnChunk, ProcessSpawnResult>;
 
@@ -90,7 +87,7 @@ export async function runCliTool(
   const work = signedIn($, found.helper, asked.argv, signal);
   let timedOut: (value: "timeout") => void = () => undefined;
   const timeout = new Promise<"timeout">((resolve) => (timedOut = resolve));
-  const timer = $.clock.after(WAIT_MS, () => timedOut("timeout"));
+  const timer = $.clock.after(HELPER_WAIT_MS, () => timedOut("timeout"));
   const first = await Promise.race([work, timeout]);
   timer.cancel();
   if (first !== "timeout") return answer(asked.command, first);
@@ -193,20 +190,9 @@ async function openBrowser(
   why: "sign_in" | "confirm",
   part: `cli:${number}`,
 ) {
-  if (!opensOn(url, helper.server)) {
-    $.ui.log(`Tonen's helper asked to open a page elsewhere than ${helper.server}`, {
-      to: "debug",
-    });
-    return;
-  }
+  const opened = await openPage($, helper, url);
+  if (opened === undefined) return;
   const words =
     why === "sign_in" ? "sign in to Tonen in your browser" : "confirm it on Tonen in your browser";
-  const opener = helper.system === "darwin" ? "open" : "xdg-open";
-  let opened = false;
-  try {
-    opened = (await $.process.run([opener, url], { timeoutMs: 10_000 })).exitCode === 0;
-  } catch {
-    opened = false;
-  }
   showStatus($, part, opened ? words : `${words}: ${url}`);
 }

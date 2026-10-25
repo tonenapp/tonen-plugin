@@ -26,6 +26,13 @@ export const CLI_COMMANDS = [
 ] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
+/**
+ * Who can comment on a site `init` or `sites_add` adds: `SITE_ACCESS` in
+ * `@tonen/contracts/site-access`, copied, since the plugin bundles nothing
+ * of Tonen's (web's claude-plugin-cli.spec.ts holds it to the contract).
+ */
+export const ACCESS_CHOICES = ["anyone", "link", "people"] as const;
+
 /** `tonen_cli`'s input, as $.tool.register takes it. */
 export const CLI_TOOL_SCHEMA = {
   type: "object",
@@ -34,7 +41,7 @@ export const CLI_TOOL_SCHEMA = {
       type: "string",
       enum: CLI_COMMANDS,
       description:
-        "status: who's signed in and the project here. projects: your member's projects. init: set this repository's site up (a project for `site`, named in tonen.json; for a deployed address, where the script tag and CSP sources go, which you add yourself; a site on this computer needs no tag, since sharing it adds the bar). link: name an existing project (`projectId`) for this repository in tonen.json. sites_add: one more address for the project (`url`). comments: the project's open comments (`all` for resolved ones too). reviewers_add: add reviewers by `emails`; Tonen mails each a link, once your member confirms it in the browser. share_link: the project's share link, after your member confirms it in the browser (`replace` makes a new one).",
+        "status: who's signed in and the project here. projects: your member's projects. init: set this repository's site up (a project for `site`, named in tonen.json, and where the script tag and CSP sources go, which you add for every site, one on this computer too; a deployed address opens its Setup tab for your member to confirm). link: name an existing project (`projectId`) for this repository in tonen.json. sites_add: one more address for the project (`url`). comments: the project's open comments (`all` for resolved ones too). reviewers_add: add reviewers by `emails`; Tonen mails each a link, once your member confirms it in the browser. share_link: the project's share link, after your member confirms it in the browser (`replace` makes a new one).",
     },
     projectId: {
       type: "string",
@@ -46,10 +53,11 @@ export const CLI_TOOL_SCHEMA = {
       description: "init: the site's address (http://localhost:5173, https://acme.example).",
     },
     name: { type: "string", description: "init: the project's name." },
-    production: {
-      type: "boolean",
+    access: {
+      type: "string",
+      enum: ACCESS_CHOICES,
       description:
-        "init, sites_add: the address is the project's production site (only the people your member adds comment there). Ask your member.",
+        "init, sites_add: who can comment on the address, if it's new. Ask your member once: do people outside your team use this address for real? Yes: `people` (only the people your member adds). Staging, a prototype: `anyone` (anyone who opens it, after confirming their email). `link` (anyone with the project's share link) only when your member asks for it. Left out: `people`, unless it expires or is on this computer.",
     },
     framework: {
       type: "string",
@@ -108,6 +116,15 @@ function flag(input: Json, key: string): boolean | Error {
   return typeof value === "boolean" ? value : new Error(`${key} isn't true or false`);
 }
 
+function access(input: Json): string | undefined | Error {
+  const value = input.access;
+  if (value === undefined) return undefined;
+  return (
+    ACCESS_CHOICES.find((choice) => choice === value) ??
+    new Error(`access is one of ${ACCESS_CHOICES.join(", ")}`)
+  );
+}
+
 function whole(input: Json, key: string, min: number, max: number): number | undefined | Error {
   const value = input[key];
   if (value === undefined) return undefined;
@@ -135,7 +152,9 @@ export function argvOf(input: unknown): { command: CliCommand; argv: string[] } 
   };
   const project = take(text(input, "projectId", false));
   if (project !== undefined) {
-    if (/^proj_[A-Za-z0-9_-]{1,64}$/.test(project)) argv.push(`--project=${project}`);
+    // The Tonen CLI's rule, as `PROJECT_ID` in listen.ts (shareArgsOf says
+    // why it's a copy).
+    if (/^proj_[0-9A-Za-z_]{3,59}$/.test(project)) argv.push(`--project=${project}`);
     else problems.push("projectId isn't a project's id (proj_…)");
   }
   const valued = (name: string, value: string | number | undefined) => {
@@ -157,7 +176,7 @@ export function argvOf(input: unknown): { command: CliCommand; argv: string[] } 
       if (framework !== undefined && !/^[a-z][a-z0-9-]{0,31}$/.test(framework)) {
         problems.push("framework isn't a framework's name (sveltekit, next-app…)");
       } else valued("framework", framework);
-      switched("production", take(flag(input, "production")));
+      valued("access", take(access(input)));
       break;
     }
     case "link":
@@ -169,7 +188,7 @@ export function argvOf(input: unknown): { command: CliCommand; argv: string[] } 
     case "sites_add": {
       argv.unshift("sites", "add");
       valued("expires", take(whole(input, "expires", 1, 365)));
-      switched("production", take(flag(input, "production")));
+      valued("access", take(access(input)));
       const url = take(text(input, "url", true));
       if (url !== undefined) argv.push("--", url);
       break;
@@ -231,7 +250,7 @@ export function answerOf(command: CliCommand, result: unknown): string {
   const lead: Record<CliCommand, string> = {
     status: "Tonen's CLI on this computer:",
     projects: "Your member's projects on Tonen:",
-    init: "Tonen set this site up, its project named in tonen.json (when `linked` names the file, tell your member to commit it). A site on this computer needs no script tag (`site` on localhost): sharing it with share_local_site adds Tonen's bar. A deployed one does: add the tag where `install.where` says unless `edited` names the file it went into, and the CSP sources if the site sets a Content-Security-Policy:",
+    init: "Tonen set this site up, its project named in tonen.json (when `linked` names the file, tell your member to commit it). Add the script tag where `install.where` says unless `edited` names the file it went into, on this computer too, so whoever runs the site sees the bar, and the CSP sources if the site sets a Content-Security-Policy. A deployed site (`site.confirmed` false) waits for your member to confirm it on the Setup tab that opened:",
     link: "This repository's project is named in tonen.json now (tell your member to commit it, so their team's tonen and Claude find it):",
     sites_add:
       "The project lists the site now (one that isn't on this computer waits for your member to confirm it on `setup`'s page):",
@@ -240,7 +259,7 @@ export function answerOf(command: CliCommand, result: unknown): string {
     reviewers_add:
       "Tonen added the reviewers your member confirmed and mailed each a link to the site:",
     share_link:
-      "The project's share link, shown once: whoever opens it reads the comments and signs in with their email to comment. Give it to your member to send:",
+      "The project's share link, shown once: whoever opens it reads the comments and signs in with their email to comment. Give it to your member to send, and tell them the site it opens (`opens`). When `opens` is null it opens no site yet: tell them so, and that a member sets a site to Anyone with the share link on the project's Setup tab first:",
   };
   return `${lead[command]} ${JSON.stringify(fields)}`;
 }

@@ -3,7 +3,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__(plugin_tonen_)?tonen__(projects|wait_for_mention|stop_listening|share_local_site|stop_sharing|tonen_cli)",
+        "matcher": "^mcp__(plugin_tonen_)?tonen__(projects|wait_for_mention|stop_listening|share_local_site|stop_sharing|tonen_cli)$",
         "hooks": [
           {
             "type": "command",

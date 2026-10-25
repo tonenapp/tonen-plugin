@@ -85,7 +85,7 @@ export type Warning =
  */
 export type Line =
   | { type: "open"; url: string; why: "sign_in" | "confirm" }
-  | { type: "ready"; address: string; port: number; projectId: string }
+  | { type: "ready"; address: string; port: number; projectId: string; access: string }
   | { type: "viewers"; n: number }
   | Warning
   | { type: "reconnecting"; inMs: number; reason: string }
@@ -123,10 +123,19 @@ export function readLine(text: string): Line | undefined {
       return typeof json.url === "string" && why ? { type: "open", url: json.url, why } : undefined;
     }
     case "ready":
+      // `access` as the CLI names it: a level from a newer Tonen is still
+      // a line to read, and `whoComesIn` words it as one it doesn't know.
       return typeof json.address === "string" &&
         isCount(json.port) &&
-        typeof json.projectId === "string"
-        ? { type: "ready", address: json.address, port: json.port, projectId: json.projectId }
+        typeof json.projectId === "string" &&
+        typeof json.access === "string"
+        ? {
+            type: "ready",
+            address: json.address,
+            port: json.port,
+            projectId: json.projectId,
+            access: json.access,
+          }
         : undefined;
     case "viewers":
       return isCount(json.n) ? { type: "viewers", n: json.n } : undefined;
@@ -408,6 +417,23 @@ export function openWords(why: "sign_in" | "confirm", port: number): string {
     : `confirm sharing localhost:${port} in your browser`;
 }
 
+/**
+ * Who opens a shared local site and comments there, by its level (the
+ * `ready` line's `access`), for what Claude tells its member.
+ */
+export function whoComesIn(access: string): string {
+  switch (access) {
+    case "anyone":
+      return "anyone who opens it reads its comments, and comments after signing in";
+    case "link":
+      return "the project's members and reviewers, and whoever opens the local site's own share link, which your member makes on the project's Setup tab, open it there and comment (Tonen asks them to sign in)";
+    case "people":
+      return "the project's members and reviewers open it there and comment (Tonen asks them to sign in)";
+    default:
+      return "whoever its Setup tab lets in opens it there and comments";
+  }
+}
+
 /** One local site the plugin shares, as the band shows it. */
 export type Shared = {
   port: number;
@@ -432,7 +458,10 @@ export function shareArgsOf(
   if (port === undefined) return PORT_RANGE;
   const projectId = args.projectId;
   if (projectId === undefined || projectId === "") return { port, projectId: undefined };
-  if (typeof projectId !== "string" || !/^proj_[0-9a-z]+$/.test(projectId)) {
+  // The Tonen CLI's rule, as `PROJECT_ID` in listen.ts, which this file can't
+  // import (Claude Code's tsconfig, which lint reads where it's written, takes
+  // no ".ts" import): claude-plugin-cli.spec.ts holds the copies together.
+  if (typeof projectId !== "string" || !/^proj_[0-9A-Za-z_]{3,59}$/.test(projectId)) {
     return "projectId is a Tonen project's id (proj_…), as `projects` lists them.";
   }
   return { port, projectId };

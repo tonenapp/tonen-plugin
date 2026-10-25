@@ -33,14 +33,17 @@ Connectors tab.
 ## What you get
 
 - **`/tonen:setup`** adds Tonen to your site: a project, named in a small
-  `tonen.json` your team commits, and your dev server shared so people
-  comment on it from anywhere (no change to your code: Tonen adds its bar
-  while it's shared; a deployed site gets Tonen's script tag). It also adds
-  Tonen to the repository's Claude Code settings, so your team installs it
-  with `claude plugin install tonen@tonen`.
+  `tonen.json` your team commits, Tonen's script tag in your pages (on
+  localhost too, so a teammate who runs the site sees the bar), who can
+  comment on each address, which Claude asks you, your confirm in the
+  browser of each deployed address, and your dev server shared so people
+  comment on it from anywhere. It also adds Tonen to the repository's
+  Claude Code settings, so your team installs it with
+  `claude plugin install tonen@tonen`.
 - **`/tonen:add-reviewers`** asks people to comment: by email (Tonen mails
-  each a link), or for a deployed site a link you send yourself. You confirm
-  it in your browser first.
+  each a link, once you confirm it in your browser), or, for a site at
+  Anyone with the share link, a link you make on the project's Setup tab
+  and send yourself.
 - **`/tonen:fix`** works through the comments one at a time: it finds the
   element in your code, fixes it, checks it, and tells the reviewer what
   changed.
@@ -52,9 +55,11 @@ Connectors tab.
   many comments are left to fix. Ask Claude to stop listening, and it does. Listening needs Claude Code; Claude's other apps
   read and answer comments when you ask.
 - **Your dev server, shared.** In Claude Code on macOS or Linux, ask Claude to
-  share your site's dev server (say, localhost:5173): your project's members
-  and reviewers then open it from anywhere and comment on it, while your
-  session runs. A line above the prompt shows the address and how many
+  share your site's dev server (say, localhost:5173): the people its setting
+  on the project's Setup tab lets in then open it from anywhere and comment
+  on it, while your session runs (at first your project's members and
+  reviewers, and anyone with the local site's own share link, which you
+  make there). A line above the prompt shows the address and how many
   people viewed it. Ask Claude to stop sharing, and it does.
 - **Tonen's helper.** Setup, invites and sharing run the Tonen CLI for you.
   The first time, Claude Code asks you, downloads it into `~/.tonen/bin` and

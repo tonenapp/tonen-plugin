@@ -3,7 +3,7 @@
 // answer to `wait_for_mention` (`via: "plugin"`), and how long to wait after
 // a call that failed.
 
-/** How long Tonen holds the plugin's call at most (`PLUGIN_LISTEN_MS` in tools.ts). */
+/** How long Tonen holds the plugin's call at most (`PLUGIN_LISTEN_MS` in agent-mcp/mention-tool.ts). */
 export const HOLD_MS = 100_000;
 
 /**
@@ -18,12 +18,21 @@ export function backgroundsTooSoon(setting: string | undefined): boolean {
   return Number.isFinite(ms) && ms < HOLD_MS + 10_000;
 }
 
+// What follows `proj_` in a project's id: the Tonen CLI's rule for the
+// tonen.json and script tags it reads (`is_project_id` in
+// apps/cli/src/project.rs), and the same in `git grep -E` and in JS.
+const PROJECT_TAIL = "[0-9A-Za-z_]{3,59}";
+
+// A whole one; local-site.ts's `shareArgsOf` and cli-tool.ts's `argvOf`
+// hold copies.
+const PROJECT_ID = new RegExp(`^proj_${PROJECT_TAIL}$`);
+
 /**
  * The pattern `git grep -E` finds Tonen's script tag by, in every form
  * Tonen's `install` writes it: `data-project="proj_…"` in HTML and JSX,
  * `"data-project": "proj_…"` in a Nuxt config.
  */
-export const TAG_PATTERN = 'data-project"?[[:space:]]*[:=][[:space:]]*"proj_[0-9a-z]+"';
+export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*"proj_${PROJECT_TAIL}"`;
 
 /**
  * The projects this repository's files load Tonen's bar for, each once, in
@@ -32,7 +41,9 @@ export const TAG_PATTERN = 'data-project"?[[:space:]]*[:=][[:space:]]*"proj_[0-9
  * quiet.
  */
 export function projectsIn(grepOutput: string): string[] {
-  const found = grepOutput.matchAll(/data-project"?\s*[:=]\s*"(proj_[0-9a-z]+)"/g);
+  const found = grepOutput.matchAll(
+    new RegExp(`data-project"?\\s*[:=]\\s*"(proj_${PROJECT_TAIL})"`, "g"),
+  );
   const ids = [...found].map((m) => m[1] ?? "");
   return [...new Set(ids.filter(Boolean))];
 }
@@ -53,7 +64,7 @@ export function projectOfConfig(text: string | undefined): string | undefined {
   }
   if (typeof json !== "object" || json === null || !("project" in json)) return undefined;
   const id = json.project;
-  return typeof id === "string" && /^proj_[0-9A-Za-z_]{3,59}$/.test(id) ? id : undefined;
+  return typeof id === "string" && PROJECT_ID.test(id) ? id : undefined;
 }
 
 /**
@@ -66,7 +77,8 @@ export function ownProject(
   candidates: readonly string[],
   projectsText: string,
 ): string | undefined {
-  const own = new Set([...projectsText.matchAll(/^(proj_[0-9a-z]+) · /gm)].map((m) => m[1]));
+  const ids = projectsText.matchAll(new RegExp(`^(proj_${PROJECT_TAIL}) · `, "gm"));
+  const own = new Set([...ids].map((m) => m[1]));
   return candidates.find((id) => own.has(id));
 }
 
@@ -113,7 +125,7 @@ export function looksLikeSite(paths: string): boolean {
 
 /**
  * Tonen's answer to a `wait_for_mention` the plugin made, as the server's
- * `PluginAnswer` (apps/web/src/lib/server/agent-mcp/tools.ts) sends it: a
+ * `PluginAnswer` (apps/web/src/lib/server/agent-mcp/mention-tool.ts) sends it: a
  * mention, with the prompt to hand the session, or why the call ended. A
  * failed call is `failed`, with what Tonen said; anything else, from a newer
  * Tonen, is `waiting`, so the plugin calls again.

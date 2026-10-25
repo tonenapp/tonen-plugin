@@ -6,32 +6,26 @@ import type {
   ProcessSpawnResult,
   Timer,
 } from "claude-code";
+import { download, type Helper, HELPER_WAIT_MS, locate, megabytes, openPage } from "./helper.ts";
 import {
   afterExit,
   type Line,
   LineSplitter,
-  type Manifest,
   openWords,
-  opensOn,
   personWords,
-  type Platform,
-  platformOf,
   readLine,
-  readManifest,
   restartDelay,
-  serverOf,
-  sha256In,
   type Shared,
   warningWords,
+  whoComesIn,
 } from "./local-site.ts";
 import { hand, showStatus } from "./status.ts";
 
 // Sharing a local site from Claude Code: Claude calls `share_local_site` with
 // the dev server's port, and the plugin runs `tonen share <port> --json`, the
 // Tonen CLI, for the rest of the session (ARCHITECTURE.md, "Local site";
-// docs/proposals/local-sites.md, "The plugin"). The CLI is downloaded once
-// from the Tonen this plugin came from, exactly the binary its cli.json names
-// (version and sha256), into ~/.tonen/bin/tonen-<version>.
+// docs/proposals/local-sites.md, "The plugin"), the one helper.ts finds or
+// downloads as the plugin's cli.json names it.
 //
 // The person is asked in Claude Code before each port and project the
 // session hasn't shared yet, and told when it downloads the helper. That is
@@ -54,13 +48,6 @@ export const SHARE = "share_local_site";
 /** The plugin's tool that stops sharing. */
 export const STOP_SHARING = "stop_sharing";
 
-/**
- * How long Claude's call waits for the local site to come up: a first share
- * waits for the person to sign in and confirm in the browser. Under Claude
- * Code's two minutes, past which a call goes to the background; longer, the
- * plugin hands Claude the address in a message of its own once it's up.
- */
-const WAIT_MS = 100_000;
 /** How long a warning or a reconnect stays on the band without a newer line. */
 const NOTE_MS = 10 * 60_000;
 /** How long a share stays up before its next exit backs off from 2 s again (`restartDelay`). */
@@ -74,9 +61,6 @@ const sharing = atom({ plugin: "tonen", key: "sharing" } as const, []);
 type Stream = HookStream<ProcessSpawnChunk, ProcessSpawnResult>;
 type Pull = IteratorResult<ProcessSpawnChunk, ProcessSpawnResult>;
 
-/** The Tonen CLI on this computer, and the Tonen it talks to. */
-export type Helper = { path: string; server: string; system: "darwin" | "linux" };
-
 /** One local site this session shares, and the `tonen` running for it. */
 type Share = Shared & {
   helper: Helper;
@@ -84,6 +68,8 @@ type Share = Shared & {
   asked: string | undefined;
   /** The project asked for; the one `ready` named once it's up. */
   projectId: string | undefined;
+  /** Who can comment on the local site, as the newest `ready` said; undefined until then. */
+  access: string | undefined;
   /** What runs now: a sign-in first (`tonen login`), or the share itself. */
   phase: "login" | "share";
   /** Whether the share may still sign in by itself: once, for the share the person asked for. */
@@ -128,7 +114,7 @@ export async function registerSharing($: EngineInterface) {
   await $.tool.register({
     name: SHARE,
     description:
-      "Shares a dev server on this computer (localhost) as the Tonen project's local site, so its members and reviewers open it from anywhere and comment on it. Asks your member first, downloads Tonen's helper (the Tonen CLI) the first time, and may open their browser to sign in or confirm. Answers with the local site's address. It runs for the rest of this session.",
+      "Shares a dev server on this computer (localhost) as the Tonen project's local site, so the people its setting on the project's Setup tab lets in open it from anywhere and comment on it. Asks your member first, downloads Tonen's helper (the Tonen CLI) the first time, and may open their browser to sign in or confirm. Answers with the local site's address. It runs for the rest of this session.",
     inputSchema: {
       type: "object",
       properties: {
@@ -222,6 +208,7 @@ export async function shareLocalSite(
     helper,
     asked: projectId,
     projectId,
+    access: undefined,
     phase: "share",
     maySignIn: true,
     stream: undefined,
@@ -247,7 +234,7 @@ export async function shareLocalSite(
   // stays the share's, for the loop that reads on.
   let timedOut: (value: "timeout") => void = () => undefined;
   const timeout = new Promise<"timeout">((resolve) => (timedOut = resolve));
-  const timer = $.clock.after(WAIT_MS, () => timedOut("timeout"));
+  const timer = $.clock.after(HELPER_WAIT_MS, () => timedOut("timeout"));
   let outcome: Awaited<ReturnType<typeof drive>>;
   try {
     await publish($);
@@ -263,7 +250,7 @@ export async function shareLocalSite(
   switch (outcome) {
     case "ready":
       readOn($, share);
-      return `Sharing localhost:${port} as ${share.address}: the project's members and reviewers open it there and comment (Tonen asks them to sign in). It runs while this session does; call ${STOP_SHARING} when your member asks to stop.${instead}${warned(share)}`;
+      return `Sharing localhost:${port} as ${share.address}: ${whoComesIn(share.access ?? "")}. It runs while this session does; call ${STOP_SHARING} when your member asks to stop.${instead}${warned(share)}`;
     case "timeout":
       share.announce = true;
       readOn($, share);
@@ -300,7 +287,7 @@ async function prepare(
     const project = projectId ? `Tonen project ${projectId}'s` : "your Tonen project's";
     const answer = await $.ui
       .ask(
-        `${download}Share localhost:${port} with ${project} members and reviewers, for the rest of this session?`,
+        `${download}Share localhost:${port} as ${project} local site, for the rest of this session? Who gets in is its setting on the project's Setup tab.`,
         { options: [yes, "Don't share"], header: "Tonen" },
       )
       .catch(() => undefined);
@@ -352,148 +339,6 @@ export function sharingSection(): string | undefined {
     return share.warning ? `${where}, which warns: ${share.warning}` : where;
   });
   return `Tonen's plugin shares ${each.join("; ")} for your member's Tonen project in this session (share_local_site). Don't run tonen share yourself; call ${STOP_SHARING} when your member asks to stop.`;
-}
-
-/**
- * Where the Tonen CLI is or goes, for this plugin's Tonen and this computer:
- * its path, and what to download when it isn't there yet. An error says, in
- * words for Claude, why it can't be.
- */
-export async function locate(
-  $: EngineInterface,
-): Promise<
-  | { helper: Helper; download: (Manifest["platforms"][Platform] & { url: string }) | undefined }
-  | { error: string }
-> {
-  const root = $.plugin.root;
-  const manifest = readManifest(await readJson($, `${root}/cli.json`));
-  const server = serverOf(await readJson($, `${root}/.mcp.json`));
-  if (manifest && !server) {
-    return {
-      error:
-        "This copy of Tonen's plugin names no Tonen on https or on this computer (its .mcp.json), and Tonen's helper talks plain http only to this computer. Install the plugin from the member's Tonen over https.",
-    };
-  }
-  if (!manifest || !server) {
-    // The terminal's `tonen` goes to tonen.app unless told which Tonen.
-    const terminal = server
-      ? `\`tonen share <port> --server ${server}\` in their terminal (curl -fsSL ${server}/install.sh | sh installs it)`
-      : "`tonen share <port>` in their terminal (curl -fsSL https://tonen.app/install.sh | sh installs it)";
-    return {
-      error: `This copy of Tonen's plugin carries no Tonen CLI to share with (its cli.json, which Tonen writes into the plugin it serves). Tell your member to run ${terminal}, or install the plugin from their Tonen.`,
-    };
-  }
-  const os = await run($, ["uname", "-s"]);
-  const machine = await run($, ["uname", "-m"]);
-  // Windows comes later (local-site.ts, `platformOf`): no uname there.
-  if (os.exitCode !== 0 || machine.exitCode !== 0) {
-    return {
-      error:
-        "Sharing a local site from Claude Code works on macOS and Linux for now; Windows comes later.",
-    };
-  }
-  const rosetta =
-    os.stdout.trim() === "Darwin" && machine.stdout.trim() === "x86_64"
-      ? (await run($, ["sysctl", "-n", "sysctl.proc_translated"])).stdout.trim() === "1"
-      : false;
-  const platform = platformOf(os.stdout, machine.stdout, rosetta);
-  const entry = platform ? manifest.platforms[platform] : undefined;
-  if (!platform || !entry) {
-    return {
-      error: `${server} has no Tonen CLI for this computer (${os.stdout.trim()} ${machine.stdout.trim()}), so it can't share a local site from here.`,
-    };
-  }
-  const home = await $.env.get("HOME");
-  if (!home) return { error: "HOME isn't set, so there's no ~/.tonen for Tonen's helper." };
-  const path = `${home}/.tonen/bin/tonen-${manifest.version}`;
-  const helper: Helper = {
-    path,
-    server,
-    system: platform.startsWith("darwin") ? "darwin" : "linux",
-  };
-  if (await $.fs.exists(path)) return { helper, download: undefined };
-  return {
-    helper,
-    download: { ...entry, url: `${server}/cli/${manifest.version}/${platform}` },
-  };
-}
-
-/**
- * Downloads the helper beside where it goes, checks its sha256 against
- * cli.json's before anything can run it, makes it executable and moves it
- * into place in one step, as install.sh does: a failed or forged download
- * leaves nothing behind. Undefined when it's in place; else why not, for
- * Claude.
- */
-export async function download(
-  $: EngineInterface,
-  helper: Helper,
-  file: { url: string; sha256: string },
-): Promise<string | undefined> {
-  const bin = helper.path.slice(0, helper.path.lastIndexOf("/"));
-  const tonenDir = bin.slice(0, bin.lastIndexOf("/"));
-  // ~/.tonen holds the CLI's sign-ins too: only its owner may read it.
-  if (!(await $.fs.exists(tonenDir))) await run($, ["mkdir", "-m", "700", tonenDir]);
-  if ((await run($, ["mkdir", "-p", bin])).exitCode !== 0) return `Couldn't make ${bin}.`;
-  const made = await run($, ["mktemp", `${bin}/.tonen-download.XXXXXX`]);
-  const tmp = made.stdout.trim();
-  if (made.exitCode !== 0 || !tmp) return `Couldn't write in ${bin}.`;
-  try {
-    // No shell: each argument as it is. curl, else wget.
-    let fetched = await run(
-      $,
-      ["curl", "-fsSL", "--max-time", "300", "-o", tmp, file.url],
-      320_000,
-    );
-    if (fetched.exitCode === 127)
-      fetched = await run($, ["wget", "-q", "-T", "300", "-O", tmp, file.url], 320_000);
-    if (fetched.exitCode !== 0) {
-      return `Downloading Tonen's helper from ${file.url} failed (${firstLine(fetched.stderr) || `exit ${fetched.exitCode}`}). Check the connection and ask again.`;
-    }
-    let hashed = await run($, ["sha256sum", tmp], 60_000);
-    if (hashed.exitCode !== 0) hashed = await run($, ["shasum", "-a", "256", tmp], 60_000);
-    const got = sha256In(hashed.stdout);
-    if (got === undefined)
-      return "Couldn't check the download: this computer has neither sha256sum nor shasum.";
-    if (got !== file.sha256) {
-      return `The helper downloaded from ${file.url} isn't the file Tonen published (its sha256 is ${got}), so it wasn't kept. Ask again; if it happens again, tell the people who run ${helper.server}.`;
-    }
-    if ((await run($, ["chmod", "755", tmp])).exitCode !== 0)
-      return `Couldn't make ${tmp} executable.`;
-    if ((await run($, ["mv", "-f", tmp, helper.path])).exitCode !== 0) {
-      return `Couldn't move the helper to ${helper.path}.`;
-    }
-  } finally {
-    await run($, ["rm", "-f", tmp]);
-  }
-  await prune($, bin, helper.path);
-  return undefined;
-}
-
-// Removes the helpers of other versions this plugin downloaded before (each
-// Tonen release, and in development each rebuild, is a new one): a running
-// one keeps its file open, and a session that still needs one downloads it
-// again before its next start (`startAgain`). install.sh's `tonen` is the
-// person's own and stays. So do downloads under way; one a session's end cut
-// off (its `finally` never ran) goes once it's an hour old, far past curl's
-// five minutes.
-async function prune($: EngineInterface, bin: string, keep: string) {
-  const entries = await $.fs.list(bin).catch(() => []);
-  const old = entries
-    .map((entry) => `${bin}/${entry.name}`)
-    .filter((path) => path !== keep && /\/tonen-[0-9A-Za-z][0-9A-Za-z.+-]*$/.test(path));
-  if (old.length > 0) await run($, ["rm", "-f", "--", ...old]);
-  await run($, [
-    "find",
-    bin,
-    "-maxdepth",
-    "1",
-    "-name",
-    ".tonen-download.*",
-    "-mmin",
-    "+60",
-    "-delete",
-  ]);
 }
 
 // Runs what the share's phase needs: `tonen login` first, or `tonen share`.
@@ -694,6 +539,7 @@ async function take($: EngineInterface, share: Share, text: string) {
       const first = share.address === null;
       share.address = line.address;
       share.projectId = line.projectId;
+      share.access = line.access;
       share.upSince ??= await $.clock.now();
       share.opened = undefined;
       say($, share.port, undefined);
@@ -706,7 +552,7 @@ async function take($: EngineInterface, share: Share, text: string) {
         share.announce = false;
         await hand(
           $,
-          `Tonen's plugin: localhost:${share.port} is shared now, as ${line.address}. Tell your member: the project's members and reviewers open it there and comment.`,
+          `Tonen's plugin: localhost:${share.port} is shared now, as ${line.address}. Tell your member: ${whoComesIn(line.access)}.`,
         );
       }
       return;
@@ -737,16 +583,10 @@ async function take($: EngineInterface, share: Share, text: string) {
 // Opens a page of this Tonen's (its sign-in or a /confirm page) in the
 // browser, and says in the status line what the person does there.
 async function openBrowser($: EngineInterface, share: Share, url: string, words: string) {
-  if (!opensOn(url, share.helper.server)) {
-    $.ui.log(`Tonen's helper asked to open a page elsewhere than ${share.helper.server}`, {
-      to: "debug",
-    });
-    return;
-  }
+  const opened = await openPage($, share.helper, url);
+  if (opened === undefined) return;
   share.opened = url;
-  const opener = share.helper.system === "darwin" ? "open" : "xdg-open";
-  const opened = await run($, [opener, url], 10_000);
-  say($, share.port, opened.exitCode === 0 ? words : `${words}: ${url}`);
+  say($, share.port, opened ? words : `${words}: ${url}`);
 }
 
 // Sets what's wrong now on the share's band line (null: nothing), for `ms`
@@ -828,26 +668,3 @@ async function publish($: EngineInterface) {
 
 /** The warnings so far, for Claude's answer. */
 const warned = (share: Share) => (share.warning ? ` Tonen warns: ${share.warning}.` : "");
-
-export const megabytes = (bytes: number) => Math.max(1, Math.round(bytes / 1_000_000));
-
-const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
-
-/** A file's JSON, or undefined when it's missing or isn't JSON. */
-async function readJson($: EngineInterface, path: string): Promise<unknown> {
-  try {
-    const json: unknown = JSON.parse(await $.fs.read(path));
-    return json;
-  } catch {
-    return undefined;
-  }
-}
-
-/** `argv` run without a shell; a command that can't start reads as exit 127. */
-async function run($: EngineInterface, argv: string[], timeoutMs = 30_000) {
-  try {
-    return await $.process.run(argv, { timeoutMs });
-  } catch (error) {
-    return { exitCode: 127, stdout: "", stderr: String(error) };
-  }
-}
