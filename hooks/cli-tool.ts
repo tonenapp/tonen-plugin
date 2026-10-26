@@ -41,7 +41,7 @@ export const CLI_TOOL_SCHEMA = {
       type: "string",
       enum: CLI_COMMANDS,
       description:
-        "status: who's signed in and the project here. projects: your member's projects. init: set this repository's site up (a project for `site`, named in tonen.json, and where the script tag and CSP sources go, which you add for every site, one on this computer too; a deployed address opens its Setup tab for your member to confirm). link: name an existing project (`projectId`) for this repository in tonen.json. sites_add: one more address for the project (`url`). comments: the project's open comments (`all` for resolved ones too). reviewers_add: add reviewers by `emails`; Tonen mails each a link, once your member confirms it in the browser. share_link: the project's share link, after your member confirms it in the browser (`replace` makes a new one).",
+        "status: who's signed in and the project here. projects: your member's projects. init: set this repository's site up (a project for `site`, named in tonen.json, and where the script tag and CSP sources go, which you add for every site, one on this computer too; a deployed address opens its Setup tab for your member to confirm). link: name an existing project (`projectId`) for this repository in tonen.json. sites_add: one more address for the project (`url`). comments: the project's open comments (`all` for resolved ones too). reviewers_add: add reviewers by `emails`; Tonen mails each a link, once your member confirms it in the browser. share_link: the share link of one of the project's sites (`site`), which must be at Anyone with the share link, after your member confirms it in the browser (`replace` makes a new one).",
     },
     projectId: {
       type: "string",
@@ -50,14 +50,15 @@ export const CLI_TOOL_SCHEMA = {
     },
     site: {
       type: "string",
-      description: "init: the site's address (http://localhost:5173, https://acme.example).",
+      description:
+        "init: the site's address (http://localhost:5173, https://acme.example). share_link: the site the link opens, one of the project's.",
     },
     name: { type: "string", description: "init: the project's name." },
     access: {
       type: "string",
       enum: ACCESS_CHOICES,
       description:
-        "init, sites_add: who can comment on the address, if it's new. Ask your member once: do people outside your team use this address for real? Yes: `people` (only the people your member adds). Staging, a prototype: `anyone` (anyone who opens it, after confirming their email). `link` (anyone with the project's share link) only when your member asks for it. Left out: `people`, unless it is on this computer.",
+        "init, sites_add: who can comment on the address, if it's new. Ask your member once: do people outside your team use this address for real? Yes: `people` (only the people your member adds). Staging, a prototype: `anyone` (anyone who opens it, after confirming their email). `link` (anyone with the site's own share link) only when your member asks for it. Left out: `people`, unless it is on this computer.",
     },
     framework: {
       type: "string",
@@ -80,7 +81,7 @@ export const CLI_TOOL_SCHEMA = {
       maxItems: 20,
       description: "reviewers_add: their email addresses.",
     },
-    replace: { type: "boolean", description: "share_link: replace the link the project has." },
+    replace: { type: "boolean", description: "share_link: replace the link the site has." },
   },
   required: ["command"],
 } as const;
@@ -211,10 +212,13 @@ export function argvOf(input: unknown): { command: CliCommand; argv: string[] } 
       } else argv.push("--", ...emails.map(String));
       break;
     }
-    case "share_link":
+    case "share_link": {
       argv.unshift("share-link");
       switched("replace", take(flag(input, "replace")));
+      const site = take(text(input, "site", true));
+      if (site !== undefined) argv.push("--", site);
       break;
+    }
   }
   if (problems.length > 0) return `tonen_cli can't run ${command}: ${problems.join("; ")}.`;
   return { command, argv };
@@ -251,7 +255,7 @@ export function answerOf(command: CliCommand, result: unknown): string {
     reviewers_add:
       "Tonen added the reviewers your member confirmed and mailed each a link to the site:",
     share_link:
-      "The project's share link, shown once: whoever opens it reads the comments left on the site it opens, and signs in with their email to comment. Give it to your member to send, and tell them the site it opens (`opens`). When `opens` is null it opens no site yet: tell them so, and that a member sets a site to Anyone with the share link on the project's Setup tab first:",
+      "The site's share link, shown once: whoever opens it reads the comments left on that site (`site`), and signs in with their email to comment. Give it to your member to send, and tell them the site it opens:",
   };
   return `${lead[command]} ${JSON.stringify(fields)}`;
 }

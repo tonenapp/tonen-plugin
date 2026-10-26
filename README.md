@@ -48,7 +48,8 @@ Connectors tab.
   `claude plugin install tonen@tonen`.
 - **`/tonen:add-reviewers`** asks people to comment: by email (Tonen mails
   each a link, once you confirm it in your browser), or, for a site at
-  Anyone with the share link, a link you make on the project's Setup tab
+  Anyone with the share link, that site's own share link, which you make
+  on the project's Setup tab (or Claude asks for, once you confirm it)
   and send yourself.
 - **`/tonen:fix`** works through the comments one at a time: it finds the
   element in your code, fixes it, checks it, and tells the reviewer what
@@ -70,7 +71,7 @@ Connectors tab.
 - **Tonen's helper.** Setup, invites and sharing run the Tonen CLI for you.
   The first time, Claude Code asks you, downloads it into `~/.tonen/bin` and
   checks it, and your browser opens for you to sign in. Anything only you
-  may do (sharing for the first time, adding reviewers, a share link) waits
+  may do (sharing for the first time, adding reviewers, a site's share link) waits
   for your Confirm on Tonen. The helper updates with the plugin; a `tonen`
   you installed in your terminal updates with `tonen upgrade`.
 - **`/tonen:remove`** takes Tonen out of your site.
