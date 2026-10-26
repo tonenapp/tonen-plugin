@@ -52,6 +52,7 @@ export const FINAL_ERRORS = [
   "api_key",
   "no_project",
   "several_projects",
+  "no_branch",
   "not_found",
   "not_allowed",
   "invalid_args",
@@ -85,7 +86,13 @@ export type Warning =
  */
 export type Line =
   | { type: "open"; url: string; why: "sign_in" | "confirm" }
-  | { type: "ready"; address: string; port: number; projectId: string; access: string }
+  | {
+      type: "ready";
+      address: string;
+      port: number;
+      projectId: string;
+      branch: string;
+    }
   | { type: "viewers"; n: number }
   | Warning
   | { type: "reconnecting"; inMs: number; reason: string }
@@ -123,18 +130,16 @@ export function readLine(text: string): Line | undefined {
       return typeof json.url === "string" && why ? { type: "open", url: json.url, why } : undefined;
     }
     case "ready":
-      // `access` as the CLI names it: a level from a newer Tonen is still
-      // a line to read, and `whoComesIn` words it as one it doesn't know.
       return typeof json.address === "string" &&
         isCount(json.port) &&
         typeof json.projectId === "string" &&
-        typeof json.access === "string"
+        typeof json.branch === "string"
         ? {
             type: "ready",
             address: json.address,
             port: json.port,
             projectId: json.projectId,
-            access: json.access,
+            branch: json.branch,
           }
         : undefined;
     case "viewers":
@@ -428,21 +433,13 @@ export function openWords(why: "sign_in" | "confirm", port: number): string {
 }
 
 /**
- * Who opens a shared local site and comments there, by its level (the
- * `ready` line's `access`), for what Claude tells its member.
+ * Who opens a shared local site and comments there, for what Claude tells
+ * its member: only the project's members and the reviewers a member added to
+ * the branch it shows (the one the member has checked out). A local site has
+ * no level or share link of its own.
  */
-export function whoComesIn(access: string): string {
-  switch (access) {
-    case "anyone":
-      return "anyone who opens it reads its comments, and comments after signing in";
-    case "link":
-      return "the project's members and the reviewers your member added to it, and whoever opens the local site's own share link, which your member makes on the local site's page in Tonen, open it there and comment (Tonen asks them to sign in)";
-    case "people":
-      return "the project's members and the reviewers your member added to it on its page in Tonen open it there and comment (Tonen asks them to sign in)";
-    default:
-      return "whoever its page in Tonen lets in opens it there and comments";
-  }
-}
+export const WHO_COMES_IN =
+  "the project's members and the reviewers added to the branch your member has checked out open it there and comment (Tonen asks them to sign in); to let someone else in, add them to that branch in Tonen";
 
 /** One local site the plugin shares, as the band shows it. */
 export type Shared = {
@@ -456,8 +453,8 @@ export type Shared = {
 
 /**
  * What Claude asked `share_local_site` for: the dev server's port and the
- * project, or undefined for the one the repository's script tag names. A
- * string says what's wrong with the call.
+ * project, or undefined for the one the repository names (its tonen.json, else
+ * its script tag). A string says what's wrong with the call.
  */
 export function shareArgsOf(
   input: unknown,

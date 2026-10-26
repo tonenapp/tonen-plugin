@@ -37,21 +37,19 @@ Connectors tab.
 
 ## What you get
 
-- **`/tonen:setup`** adds Tonen to your site: a project, named in a small
+- **`/tonen:setup`** adds Tonen to your project: the project, named in a small
   `tonen.json` your team commits, Tonen's script tag in your pages (on
-  localhost too, so a teammate who runs the site sees the bar, where
-  your own comments on localhost stay yours), who can
-  comment on each address, which Claude asks you, your confirm in the
+  localhost too, so a teammate who runs the project sees the bar), who can
+  comment on each branch, which Claude asks you, your confirm in the
   browser of each deployed address, and your dev server shared so people
   comment on it from anywhere. It also adds Tonen to the repository's
   Claude Code settings, so your team installs it with
   `claude plugin install tonen@tonen`.
 - **`/tonen:add-reviewers`** asks people to comment: by email, on one of
-  your sites (Tonen mails each a link to it, once you confirm it in your
-  browser), or, for a site at
-  Anyone with the share link, that site's own share link, which you make
-  on that site's page in Tonen (or Claude asks for, once you confirm it)
-  and send yourself.
+  your project's branches (Tonen mails each a link to it, once you confirm it
+  in your browser), or, for a branch at Anyone with the share link, that
+  branch's share link, which you make on the branch's page in Tonen (or
+  Claude asks for, once you confirm it) and send yourself.
 - **`/tonen:fix`** works through the comments one at a time: it finds the
   element in your code, fixes it, checks it, and tells the reviewer what
   changed.
@@ -62,17 +60,20 @@ Connectors tab.
   it changes anything. A line above the prompt says when it listens and how
   many comments are left to fix. Ask Claude to stop listening, and it does. Listening needs Claude Code; Claude's other apps
   read and answer comments when you ask.
+- **The branch you have checked out.** Comments belong to a git branch of
+  your project. As your session starts, and whenever you switch branches while
+  it runs, the plugin tells Tonen which branch you have checked out, so your
+  localhost and your local site show that branch's comments.
 - **Your dev server, shared.** In Claude Code on macOS or Linux, ask Claude to
-  share your site's dev server (say, localhost:5173): the people its setting
-  on its page in Tonen lets in then open it from anywhere and comment
-  on it, while your session runs (at first your project's members, the
-  reviewers you add to it there, and anyone with the local site's own
-  share link, which you make there). A line above the prompt shows the address and how many
-  people viewed it. Ask Claude to stop sharing, and it does.
+  share your project's dev server (say, localhost:5173): your project's members
+  and the reviewers added to the branch you have checked out then open it
+  from anywhere and comment on that branch, while your session runs. A line above the
+  prompt shows the address and how many people viewed it. Ask Claude to
+  stop sharing, and it does.
 - **Tonen's helper.** Setup, invites and sharing run the Tonen CLI for you.
   The first time, Claude Code asks you, downloads it into `~/.tonen/bin` and
   checks it, and your browser opens for you to sign in. Anything only you
-  may do (sharing for the first time, adding reviewers, a site's share link) waits
+  may do (sharing for the first time, adding reviewers, a branch's share link) waits
   for your Confirm on Tonen. The helper updates with the plugin; a `tonen`
   you installed in your terminal updates with `tonen upgrade`.
 - **`/tonen:remove`** takes Tonen out of your site.
@@ -84,7 +85,10 @@ plugin lets those two run without a permission prompt, and its own
 `stop_listening`, `share_local_site` and `stop_sharing` (sharing asks you
 itself, for each port it hasn't shared in that session), and `tonen_cli`,
 which runs the Tonen CLI for your errands (Tonen asks you in the browser for
-what only you may do). Every other tool asks as usual. Comment text is treated as a request about your site, never as
+what only you may do). Telling Tonen the branch you have checked out runs
+the helper by itself, once it's on your computer and signed in; it never
+downloads it, signs in or opens your browser for that. Every other tool asks
+as usual. Comment text is treated as a request about your project, never as
 instructions to Claude.
 
 ## Remove it

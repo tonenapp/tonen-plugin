@@ -18,7 +18,8 @@ import { helperWords, LineSplitter, readLine } from "./local-site.ts";
 import { hand, showStatus } from "./status.ts";
 
 // `tonen_cli`: Claude runs the Tonen CLI for its member's errands (setting a
-// site up, its sites, its reviewers, its share link), with `--json`, through
+// project up, its branches and addresses, its reviewers, a branch's share
+// link), with `--json`, through
 // the plugin rather than a shell: no PATH to find, no permission prompt for
 // each call, and the CLI exactly as the plugin's cli.json names it, checked
 // as `share_local_site` checks it (helper.ts). cli-tool.ts holds what Claude
@@ -29,6 +30,10 @@ import { hand, showStatus } from "./status.ts";
 // page for what only a person may do, which is the security boundary.
 // Claude waits up to 100 s; past that the plugin hands it the answer in a
 // message once the person is done in the browser.
+//
+// The same helper reports the branch the session's repository has checked
+// out (`reportBranch`), which the plugin does by itself: quietly, without a
+// download, a sign-in or a page in the browser.
 
 type Stream = HookStream<ProcessSpawnChunk, ProcessSpawnResult>;
 
@@ -48,7 +53,7 @@ export async function registerCliTool($: EngineInterface) {
   await $.tool.register({
     name: CLI_TOOL,
     description:
-      "Runs the Tonen CLI on this computer as your member, for their errands on Tonen: what's set up here (status), their projects, setting this repository's site up (init: a project, the script tag, the CSP sources), adding a site, reading the project's comments, adding reviewers by email and making a site's share link. Answers with the CLI's result as JSON. Downloads Tonen's helper the first time (asking your member), and may open their browser to sign in or to confirm what only they may do. Fixing comments, replying and marking them stay on Tonen's MCP tools, so people see your work as yours. Its helper comes with the plugin and updates with it (`claude plugin update tonen@tonen`, then a restart of Claude Code); a `tonen` in your member's own terminal updates with `tonen upgrade` (the line its notice or error prints), which you may run for them.",
+      "Runs the Tonen CLI on this computer as your member, for their errands on Tonen: what's set up here (status), their projects, a project's branches, setting this repository's project up (init: a project, the script tag, the CSP sources), adding an address, reading the project's comments, adding reviewers to a branch by email and making a branch's share link. Answers with the CLI's result as JSON. Downloads Tonen's helper the first time (asking your member), and may open their browser to sign in or to confirm what only they may do. Fixing comments, replying and marking them stay on Tonen's MCP tools, so people see your work as yours. Its helper comes with the plugin and updates with it (`claude plugin update tonen@tonen`, then a restart of Claude Code); a `tonen` in your member's own terminal updates with `tonen upgrade` (the line its notice or error prints), which you may run for them.",
     inputSchema: CLI_TOOL_SCHEMA,
   });
 }
@@ -105,6 +110,37 @@ export async function runCliTool(
   return "Tonen waits for your member in the browser (a sign-in or a Confirm). Tell them; the plugin hands you the answer in a message once they're done.";
 }
 
+/**
+ * Tells Tonen the branch the session's repository has checked out, on
+ * `projectId` (`tonen branch`): the branch's name as Tonen took it, or why not,
+ * for the debug log. Only with a helper already on this computer and
+ * signed in: the person didn't ask for it, so it never downloads, signs in
+ * or opens the browser.
+ */
+export async function reportBranch(
+  $: EngineInterface,
+  projectId: string,
+): Promise<{ branch: string } | { failed: string }> {
+  const asked = argvOf({ command: "branch", projectId });
+  if (typeof asked === "string") return { failed: asked };
+  const found = await locate($);
+  if ("error" in found) return { failed: found.error };
+  if (found.download) return { failed: "Tonen's helper isn't on this computer yet" };
+  const ran = await runOnce($, found.helper, asked.argv, new AbortController().signal, false);
+  if (ran.kind === "error") return { failed: `${ran.code}: ${ran.message}` };
+  const branch = branchNameOf(ran.json);
+  return branch === undefined ? { failed: "its answer names no branch" } : { branch };
+}
+
+// The `branch` result's branch name (`{branch: {name}}`), read as far as
+// the plugin needs it.
+function branchNameOf(json: unknown): string | undefined {
+  if (typeof json !== "object" || json === null || !("branch" in json)) return undefined;
+  const branch = json.branch;
+  if (typeof branch !== "object" || branch === null || !("name" in branch)) return undefined;
+  return typeof branch.name === "string" ? branch.name : undefined;
+}
+
 function answer(command: CliCommand, ran: Ran): string {
   return ran.kind === "result"
     ? answerOf(command, ran.json)
@@ -126,12 +162,14 @@ async function signedIn(
   return runOnce($, helper, argv, signal);
 }
 
-// One run of the CLI, read to its last line, its `open` lines followed.
+// One run of the CLI, read to its last line, its `open` lines followed
+// unless `opens` is false (a run the person didn't ask for).
 async function runOnce(
   $: EngineInterface,
   helper: Helper,
   argv: string[],
   signal: AbortSignal,
+  opens = true,
 ): Promise<Ran> {
   // A listener added to a signal that already aborted never runs.
   if (signal.aborted) return { kind: "error", code: "stopped", message: "Your member stopped it." };
@@ -146,7 +184,7 @@ async function runOnce(
   const take = async (text: string) => {
     const line = readLine(text);
     if (line?.type === "open") {
-      await openBrowser($, helper, line.url, line.why, part);
+      if (opens) await openBrowser($, helper, line.url, line.why, part);
     } else if (line?.type === "error") {
       last = { kind: "error", code: line.code, message: line.message };
     } else if (line?.type === "result") {

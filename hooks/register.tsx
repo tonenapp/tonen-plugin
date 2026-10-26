@@ -1,7 +1,7 @@
 import { atom, read, update } from "claude-code";
 import type { EngineInterface, Register } from "claude-code";
 import { offerAutoUpdate } from "./auto-update.ts";
-import { registerCliTool, runCliTool } from "./cli.ts";
+import { registerCliTool, reportBranch, runCliTool } from "./cli.ts";
 import { CLI_TOOL } from "./cli-tool.ts";
 import { shareArgsOf, sharingLine, stopArgsOf } from "./local-site.ts";
 import {
@@ -17,16 +17,17 @@ import { hand, handUnsent, showStatus } from "./status.ts";
 import {
   type Answer,
   backgroundsTooSoon,
+  checkedOutIn,
   countsIn,
   delayAfter,
   listeningLine,
   TAG_PATTERN,
   looksLikeSite,
   ownProject,
+  readAnswer,
   projectIdOf,
   projectOfConfig,
   projectsIn,
-  readAnswer,
 } from "./listen.ts";
 
 // Tonen's plugin for Claude Code: it listens for the member's mentions
@@ -46,9 +47,12 @@ import {
 // model framed as the plugin's message, never as the member's own words: it
 // was typed on a website.
 //
-// It also shares the member's dev server as a project's local site when
-// Claude calls `share_local_site` (share.ts, which runs the Tonen CLI's `tonen
-// share`); the band shows each one shared.
+// It also shares the member's dev server as a project's local site when Claude
+// calls `share_local_site` (share.ts, which runs the Tonen CLI's `tonen
+// share`); the band shows each one shared. And it tells Tonen which branch
+// the repository has checked out (`tonen branch`), as the session starts and
+// whenever a turn of its listening sees it change, so the member's localhost
+// and local site show that branch's comments.
 
 /** The server's key in .mcp.json. */
 const SERVER = "tonen";
@@ -65,15 +69,27 @@ const STOP = "stop_listening";
 /** After Tonen refused a call (a project left, a grant taken away), how long until it tries again. */
 const REFUSED_RETRY_MS = 5 * 60_000;
 
-// What the plugin listens on: one project, or all of the member's
-// (`projectId` undefined), and which loop is the current one, so a new
-// target ends the old loop at its next turn. A reload of the module starts
-// it over, as it cancels its timers.
+// What the plugin listens on: one project, or all of the member's (`projectId`
+// undefined), and which loop is the current one, so a new target ends the
+// old loop at its next turn. A reload of the module starts it over, as it
+// cancels its timers.
 let target: { projectId: string | undefined; loop: number } | undefined;
 let loops = 0;
 // Whether this session may still ask about the plugin's updates: an
 // interactive one, once, after its first turn (auto-update.ts).
 let mayOfferUpdates = false;
+
+// The project whose checked-out branch the plugin reports: the one the
+// repository's tonen.json names, else its only script tag's, else the
+// member's own among its tags once Tonen lists them.
+let repoProject: string | undefined;
+// What the plugin last told Tonen the repository has checked out, in memory
+// only: each session reports again as it starts (another session or
+// computer of the member's may have reported another branch since), and so
+// does a reload of the module, which Tonen takes as the same report.
+let reported: { projectId: string; branch: string } | undefined;
+// A report under way: the next turn doesn't start a second.
+let reporting = false;
 
 // What the band draws (types/index.d.ts): set while listening, null otherwise.
 const band = atom({ plugin: "tonen", key: "band" } as const, null);
@@ -96,11 +112,15 @@ export const register: Register = (on) => {
         "Stops Tonen's plugin listening for your member's mentions (@Claude) in this session. Call it when your member asks you to stop listening.",
     });
     mayOfferUpdates = true;
-    const candidates = await projectsHere($);
+    const here = await projectsHere($);
+    const candidates = here.all;
+    repoProject = here.named ?? (candidates.length === 1 ? candidates[0] : undefined);
+    reported = undefined;
     if (candidates.length === 0) {
       await offerSetup($);
       return started;
     }
+    $.clock.after(0, () => void reportCheckedOut($));
     if (backgroundsTooSoon(await $.env.get("CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS"))) {
       await warn($, "remove CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS from your settings to hear @Claude");
       return started;
@@ -233,8 +253,8 @@ async function warn($: EngineInterface, text: string) {
   showStatus($, "listen", text);
 }
 
-// Listens on `projectId` (all of the member's projects when undefined) from
-// now on, in a loop of its own; any loop before it ends at its next turn, and
+// Listens on `projectId` (all of the member's projects when undefined) from now
+// on, in a loop of its own; any loop before it ends at its next turn, and
 // the band starts over, so it never shows another project's count.
 async function startListening($: EngineInterface, projectId: string | undefined) {
   loops += 1;
@@ -252,8 +272,8 @@ async function stopListening($: EngineInterface) {
   showStatus($, "listen", undefined);
 }
 
-// Whether `projectId` is one of the member's projects. True when Tonen can't
-// say now: listening then finds out, and says so.
+// Whether `projectId` is one of the member's projects. True when Tonen can't say
+// now: listening then finds out, and says so.
 async function mayListenOn($: EngineInterface, projectId: string): Promise<boolean> {
   const tonen = await $.mcp.connect(SERVER);
   if (!tonen.isConnected) return true;
@@ -287,6 +307,10 @@ async function start($: EngineInterface, candidates: readonly string[], failures
   }
   showStatus($, "listen", undefined);
   const project = ownProject(candidates, listed);
+  if (project && repoProject === undefined) {
+    repoProject = project;
+    void reportCheckedOut($);
+  }
   if (project && !target) await startListening($, project);
 }
 
@@ -300,11 +324,13 @@ async function notConnected($: EngineInterface, reason: string) {
 // One held call at a time: each ends with a mention, or when Tonen says to
 // call again (every 100 s at most), and the next starts at once; a failure
 // waits a little longer each time, up to a minute. The band's count of
-// comments to fix is read again before each. A loop that is no longer the
-// current one stops at its next turn.
+// comments to fix is read again before each, and the repository's branch
+// reported when it changed. A loop that is no longer the current one stops
+// at its next turn.
 async function listen($: EngineInterface, loop: number, failures: number) {
   if (!target || target.loop !== loop) return;
   const { projectId } = target;
+  void reportCheckedOut($);
   const again = (ms: number, failed: number) =>
     $.clock.after(ms, () => void listen($, loop, failed));
   const tonen = await $.mcp.connect(SERVER);
@@ -380,18 +406,52 @@ async function projectsText($: EngineInterface, server: string): Promise<string 
 }
 
 /**
- * The Tonen projects this session's repository names: its tonen.json first,
- * then its tracked files' script tags. Empty in a folder without Tonen.
+ * The Tonen projects this session's repository names (`all`): its tonen.json's
+ * (`named`) first, then its tracked files' script tags. Empty in a folder
+ * without Tonen.
  */
-async function projectsHere($: EngineInterface): Promise<string[]> {
+async function projectsHere(
+  $: EngineInterface,
+): Promise<{ named: string | undefined; all: string[] }> {
   // tonen.json at the repository's root (the session's folder outside git),
   // then the script tags in the whole repository (`:/`), wherever in it the
   // session started.
   const root = (await git($, ["rev-parse", "--show-toplevel"]))?.trim() ?? (await $.session.cwd());
-  const config = projectOfConfig(await $.fs.read(`${root}/tonen.json`).catch(() => undefined));
+  const named = projectOfConfig(await $.fs.read(`${root}/tonen.json`).catch(() => undefined));
   const found = await git($, ["grep", "-h", "-o", "-I", "-E", TAG_PATTERN, "--", ":/"]);
   const tagged = found === undefined ? [] : projectsIn(found);
-  return [...new Set([...(config ? [config] : []), ...tagged])];
+  return { named, all: [...new Set([...(named ? [named] : []), ...tagged])] };
+}
+
+// Tells Tonen the branch the repository has checked out when it isn't the
+// one last reported. Nothing on a detached HEAD, nor before the plugin knows
+// the repository's project. It never asks the person anything: a report that
+// fails (no helper yet, not signed in, Tonen down) goes to the debug log, and
+// the next turn tries again.
+async function reportCheckedOut($: EngineInterface) {
+  const projectId = repoProject;
+  if (reporting || projectId === undefined) return;
+  reporting = true;
+  try {
+    const head = await git($, ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const branch = head === undefined ? undefined : checkedOutIn(head);
+    if (branch === undefined) return;
+    if (reported?.projectId === projectId && reported.branch === branch) return;
+    const result = await reportBranch($, projectId);
+    if ("failed" in result) {
+      $.ui.log(`Tonen's plugin couldn't report branch ${branch}: ${result.failed}`, {
+        to: "debug",
+      });
+      return;
+    }
+    // What git said here, which the next turn compares against: the CLI
+    // read the same HEAD (or a newer one, which the next turn reports again).
+    reported = { projectId, branch };
+  } catch (error) {
+    $.ui.log(`Tonen's plugin couldn't report the branch: ${String(error)}`, { to: "debug" });
+  } finally {
+    reporting = false;
+  }
 }
 
 // In a website's repository without Tonen, says once where to start, then

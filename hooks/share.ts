@@ -17,7 +17,7 @@ import {
   restartDelay,
   type Shared,
   warningWords,
-  whoComesIn,
+  WHO_COMES_IN,
 } from "./local-site.ts";
 import { hand, showStatus } from "./status.ts";
 
@@ -68,8 +68,8 @@ type Share = Shared & {
   asked: string | undefined;
   /** The project asked for; the one `ready` named once it's up. */
   projectId: string | undefined;
-  /** Who can comment on the local site, as the newest `ready` said; undefined until then. */
-  access: string | undefined;
+  /** The branch the local site shows (the one checked out), as the newest `ready` said; undefined until then. */
+  branch: string | undefined;
   /** What runs now: a sign-in first (`tonen login`), or the share itself. */
   phase: "login" | "share";
   /** Whether the share may still sign in by itself: once, for the share the person asked for. */
@@ -114,7 +114,7 @@ export async function registerSharing($: EngineInterface) {
   await $.tool.register({
     name: SHARE,
     description:
-      "Shares a dev server on this computer (localhost) as the Tonen project's local site, so the people its setting on its page in Tonen lets in open it from anywhere and comment on it. Asks your member first, downloads Tonen's helper (the Tonen CLI) the first time, and may open their browser to sign in or confirm. Answers with the local site's address. It runs for the rest of this session.",
+      "Shares a dev server on this computer (localhost) as the Tonen project's local site, so the project's members and the people added to the branch it shows open it from anywhere and comment on it. It shows the branch your member has checked out, with that branch's comments, and follows when they switch. Asks your member first, downloads Tonen's helper (the Tonen CLI) the first time, and may open their browser to sign in or confirm. Answers with the local site's address. It runs for the rest of this session.",
     inputSchema: {
       type: "object",
       properties: {
@@ -127,7 +127,7 @@ export async function registerSharing($: EngineInterface) {
         projectId: {
           type: "string",
           description:
-            "The Tonen project (proj_…); left out, the one this repository's script tag names.",
+            "The Tonen project (proj_…); left out, the one this repository names (its tonen.json, else its script tag).",
         },
       },
       required: ["port"],
@@ -208,7 +208,7 @@ export async function shareLocalSite(
     helper,
     asked: projectId,
     projectId,
-    access: undefined,
+    branch: undefined,
     phase: "share",
     maySignIn: true,
     stream: undefined,
@@ -250,7 +250,7 @@ export async function shareLocalSite(
   switch (outcome) {
     case "ready":
       readOn($, share);
-      return `Sharing localhost:${port} as ${share.address}: ${whoComesIn(share.access ?? "")}. It runs while this session does; call ${STOP_SHARING} when your member asks to stop.${instead}${warned(share)}`;
+      return `Sharing localhost:${port} as ${share.address}${showing(share)}: ${WHO_COMES_IN}. It runs while this session does; call ${STOP_SHARING} when your member asks to stop.${instead}${warned(share)}`;
     case "timeout":
       share.announce = true;
       readOn($, share);
@@ -287,7 +287,7 @@ async function prepare(
     const project = projectId ? `Tonen project ${projectId}'s` : "your Tonen project's";
     const answer = await $.ui
       .ask(
-        `${download}Share localhost:${port} as ${project} local site, for the rest of this session? Who gets in is its setting on its page in Tonen.`,
+        `${download}Share localhost:${port} as ${project} local site, showing the branch you have checked out, for the rest of this session? Who gets in is its setting on its page in Tonen.`,
         { options: [yes, "Don't share"], header: "Tonen" },
       )
       .catch(() => undefined);
@@ -338,7 +338,7 @@ export function sharingSection(): string | undefined {
         : `localhost:${share.port} as ${share.address}`;
     return share.warning ? `${where}, which warns: ${share.warning}` : where;
   });
-  return `Tonen's plugin shares ${each.join("; ")} for your member's Tonen project in this session (share_local_site). Don't run tonen share yourself; call ${STOP_SHARING} when your member asks to stop.`;
+  return `Tonen's plugin shares ${each.join("; ")} for your member's Tonen project in this session (share_local_site), showing the branch your member has checked out. Don't run tonen share yourself; call ${STOP_SHARING} when your member asks to stop.`;
 }
 
 // Runs what the share's phase needs: `tonen login` first, or `tonen share`.
@@ -539,7 +539,7 @@ async function take($: EngineInterface, share: Share, text: string) {
       const first = share.address === null;
       share.address = line.address;
       share.projectId = line.projectId;
-      share.access = line.access;
+      share.branch = line.branch;
       share.upSince ??= await $.clock.now();
       share.opened = undefined;
       say($, share.port, undefined);
@@ -552,7 +552,7 @@ async function take($: EngineInterface, share: Share, text: string) {
         share.announce = false;
         await hand(
           $,
-          `Tonen's plugin: localhost:${share.port} is shared now, as ${line.address}. Tell your member: ${whoComesIn(line.access)}.`,
+          `Tonen's plugin: localhost:${share.port} is shared now, as ${line.address}${showing(share)}. Tell your member: ${WHO_COMES_IN}.`,
         );
       }
       return;
@@ -665,6 +665,10 @@ async function publish($: EngineInterface) {
   }));
   await update($, sharing, () => rows);
 }
+
+/** The branch the local site shows, for Claude: it follows what's checked out, so "now". */
+const showing = (share: Share) =>
+  share.branch ? `, showing the branch your member has checked out (${share.branch} now)` : "";
 
 /** The warnings so far, for Claude's answer. */
 const warned = (share: Share) => (share.warning ? ` Tonen warns: ${share.warning}.` : "");

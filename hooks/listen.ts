@@ -1,7 +1,7 @@
 // What the plugin reads and decides, kept apart from the hooks so it has no
-// engine in it: the project a repository's pages load Tonen for, Tonen's
-// answer to `wait_for_mention` (`via: "plugin"`), and how long to wait after
-// a call that failed.
+// engine in it: the project a repository's pages load Tonen for, the branch it
+// has checked out, Tonen's answer to `wait_for_mention` (`via: "plugin"`),
+// and how long to wait after a call that failed.
 
 /** How long Tonen holds the plugin's call at most (`PLUGIN_LISTEN_MS` in agent-mcp/mention-tool.ts). */
 export const HOLD_MS = 100_000;
@@ -18,21 +18,21 @@ export function backgroundsTooSoon(setting: string | undefined): boolean {
   return Number.isFinite(ms) && ms < HOLD_MS + 10_000;
 }
 
-// What follows `proj_` in a project's id: the Tonen CLI's rule for the
-// tonen.json and script tags it reads (`is_project_id` in
-// apps/cli/src/project.rs), and the same in `git grep -E` and in JS.
-const PROJECT_TAIL = "[0-9A-Za-z_]{3,59}";
+// A project's id: the Tonen CLI's rule for the tonen.json and script tags it
+// reads (`is_project_id` in apps/cli/src/project.rs), and the same in
+// `git grep -E` and in JS.
+const PROJECT_ID_SHAPE = "proj_[0-9A-Za-z_]{3,59}";
 
 // A whole one; local-site.ts's `shareArgsOf` and cli-tool.ts's `argvOf`
 // hold copies.
-const PROJECT_ID = new RegExp(`^proj_${PROJECT_TAIL}$`);
+const PROJECT_ID = new RegExp(`^${PROJECT_ID_SHAPE}$`);
 
 /**
  * The pattern `git grep -E` finds Tonen's script tag by, in every form
  * Tonen's `install` writes it: `data-project="proj_…"` in HTML and JSX,
  * `"data-project": "proj_…"` in a Nuxt config.
  */
-export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*"proj_${PROJECT_TAIL}"`;
+export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*"${PROJECT_ID_SHAPE}"`;
 
 /**
  * The projects this repository's files load Tonen's bar for, each once, in
@@ -42,16 +42,16 @@ export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*"proj_${PR
  */
 export function projectsIn(grepOutput: string): string[] {
   const found = grepOutput.matchAll(
-    new RegExp(`data-project"?\\s*[:=]\\s*"(proj_${PROJECT_TAIL})"`, "g"),
+    new RegExp(`data-project"?\\s*[:=]\\s*"(${PROJECT_ID_SHAPE})"`, "g"),
   );
   const ids = [...found].map((m) => m[1] ?? "");
   return [...new Set(ids.filter(Boolean))];
 }
 
 /**
- * The project a repository's `tonen.json` names (`{"project": "proj_…"}`,
- * which `tonen init` and `tonen link` write at its root), or undefined for
- * a missing or unreadable one: it comes first among the candidates, before
+ * The project a repository's `tonen.json` names (`{"project": "proj_…"}`, which
+ * `tonen init` and `tonen link` write at its root), or undefined for a
+ * missing or unreadable one: it comes first among the candidates, before
  * the script tags `git grep` finds.
  */
 export function projectOfConfig(text: string | undefined): string | undefined {
@@ -70,24 +70,33 @@ export function projectOfConfig(text: string | undefined): string | undefined {
 /**
  * The first of `candidates` that is one of the member's projects, as Tonen's
  * `projects` tool lists them, each line starting with its id ("proj_… · Name ·
- * sites: …"). A repository can hold another project's tag (a test fixture, an
- * example): only one of the member's own is listened on.
+ * branches: …"). A repository can hold another project's tag (a test fixture,
+ * an example): only one of the member's own is listened on.
  */
 export function ownProject(
   candidates: readonly string[],
   projectsText: string,
 ): string | undefined {
-  const ids = projectsText.matchAll(new RegExp(`^(proj_${PROJECT_TAIL}) · `, "gm"));
+  const ids = projectsText.matchAll(new RegExp(`^(${PROJECT_ID_SHAPE}) · `, "gm"));
   const own = new Set([...ids].map((m) => m[1]));
   return candidates.find((id) => own.has(id));
+}
+
+/**
+ * The branch `git rev-parse --abbrev-ref HEAD` printed, or undefined when
+ * there's none to report: a detached HEAD (git prints `HEAD`), or nothing.
+ */
+export function checkedOutIn(gitOutput: string): string | undefined {
+  const name = gitOutput.trim();
+  return name === "" || name === "HEAD" ? undefined : name;
 }
 
 /** A project's comments as `projects` counts them: open with nobody on it, in progress, fixed. */
 export type Counts = { toFix: number; inProgress: number; fixed: number };
 
 /**
- * `projectId`'s counts in the text of Tonen's `projects` tool, whose line for
- * it starts with its id and holds "3 open, 1 in progress, 0 fixed".
+ * `projectId`'s counts in the text of Tonen's `projects` tool, whose line for it
+ * starts with its id and holds "3 open, 1 in progress, 0 fixed".
  */
 export function countsIn(projectsText: string, projectId: string): Counts | undefined {
   const line = projectsText.split("\n").find((l) => l.startsWith(`${projectId} · `));
