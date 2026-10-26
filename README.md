@@ -46,8 +46,9 @@ Connectors tab.
   comment on it from anywhere. It also adds Tonen to the repository's
   Claude Code settings, so your team installs it with
   `claude plugin install tonen@tonen`.
-- **`/tonen:add-reviewers`** asks people to comment: by email (Tonen mails
-  each a link, once you confirm it in your browser), or, for a site at
+- **`/tonen:add-reviewers`** asks people to comment: by email, on one of
+  your sites (Tonen mails each a link to it, once you confirm it in your
+  browser), or, for a site at
   Anyone with the share link, that site's own share link, which you make
   on that site's page in Tonen (or Claude asks for, once you confirm it)
   and send yourself.
@@ -64,9 +65,9 @@ Connectors tab.
 - **Your dev server, shared.** In Claude Code on macOS or Linux, ask Claude to
   share your site's dev server (say, localhost:5173): the people its setting
   on its page in Tonen lets in then open it from anywhere and comment
-  on it, while your session runs (at first your project's members and
-  reviewers, and anyone with the local site's own share link, which you
-  make there). A line above the prompt shows the address and how many
+  on it, while your session runs (at first your project's members, the
+  reviewers you add to it there, and anyone with the local site's own
+  share link, which you make there). A line above the prompt shows the address and how many
   people viewed it. Ask Claude to stop sharing, and it does.
 - **Tonen's helper.** Setup, invites and sharing run the Tonen CLI for you.
   The first time, Claude Code asks you, downloads it into `~/.tonen/bin` and
