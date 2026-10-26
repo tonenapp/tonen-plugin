@@ -1,11 +1,8 @@
 {
   "name": "tonen",
-  "version": "0.1.0+eff7754fc8b8",
+  "version": "2026.10.26",
   "description": "Comments on your running site, pinned to its elements: Claude fixes them, answers @Claude in them, and sets Tonen up.",
-  "author": {
-    "name": "Tonen",
-    "url": "https://tonen.app"
-  },
+  "author": { "name": "Tonen", "url": "https://tonen.app" },
   "homepage": "https://tonen.app",
   "license": "Apache-2.0",
   "types": "./types/index.d.ts"

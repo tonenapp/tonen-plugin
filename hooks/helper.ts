@@ -15,8 +15,10 @@ import {
 // (`share_local_site` in share.ts, `tonen_cli` in cli.ts): found on this
 // computer or downloaded once from the Tonen this plugin came from, exactly
 // the binary its cli.json names (version and sha256), into
-// ~/.tonen/bin/tonen-<version>; and the pages of that Tonen it opens in the
-// browser.
+// ~/.tonen/bin/tonen-<version>-<12 hex of its sha256>; and the pages of that
+// Tonen it opens in the browser. The name holds the bytes too: a version names
+// one binary on tonen.app, but a preview's later push can serve other bytes
+// under the same version.
 
 /**
  * How long Claude's call waits for the helper: a first run waits for the
@@ -80,7 +82,7 @@ export async function locate(
   }
   const home = await $.env.get("HOME");
   if (!home) return { error: "HOME isn't set, so there's no ~/.tonen for Tonen's helper." };
-  const path = `${home}/.tonen/bin/tonen-${manifest.version}`;
+  const path = `${home}/.tonen/bin/tonen-${manifest.version}-${entry.sha256.slice(0, 12)}`;
   const helper: Helper = {
     path,
     server,

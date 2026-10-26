@@ -63,7 +63,7 @@ export const FINAL_ERRORS = [
   "confirm_failed",
   "upgrade_required",
   // Only `tonen upgrade` ends with it, which the plugin never runs: it keeps
-  // its own tonen-<version> by cli.json.
+  // its own tonen-<version>-<sha> by cli.json.
   "installed_elsewhere",
 ] as const;
 
@@ -319,7 +319,7 @@ export type Manifest = {
 
 /**
  * cli.json read as `cliManifestSchema` checks it: undefined for anything
- * else. Its version names a file (`tonen-<version>`) and a path, so it is
+ * else. Its version names a file (`tonen-<version>-<sha>`) and a path, so it is
  * held to the same characters.
  */
 export function readManifest(json: unknown): Manifest | undefined {
