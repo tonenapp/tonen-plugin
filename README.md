@@ -49,7 +49,7 @@ Connectors tab.
 - **`/tonen:add-reviewers`** asks people to comment: by email (Tonen mails
   each a link, once you confirm it in your browser), or, for a site at
   Anyone with the share link, that site's own share link, which you make
-  on the project's Setup tab (or Claude asks for, once you confirm it)
+  on that site's page in Tonen (or Claude asks for, once you confirm it)
   and send yourself.
 - **`/tonen:fix`** works through the comments one at a time: it finds the
   element in your code, fixes it, checks it, and tells the reviewer what
@@ -63,7 +63,7 @@ Connectors tab.
   read and answer comments when you ask.
 - **Your dev server, shared.** In Claude Code on macOS or Linux, ask Claude to
   share your site's dev server (say, localhost:5173): the people its setting
-  on the project's Setup tab lets in then open it from anywhere and comment
+  on its page in Tonen lets in then open it from anywhere and comment
   on it, while your session runs (at first your project's members and
   reviewers, and anyone with the local site's own share link, which you
   make there). A line above the prompt shows the address and how many

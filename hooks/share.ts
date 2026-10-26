@@ -114,7 +114,7 @@ export async function registerSharing($: EngineInterface) {
   await $.tool.register({
     name: SHARE,
     description:
-      "Shares a dev server on this computer (localhost) as the Tonen project's local site, so the people its setting on the project's Setup tab lets in open it from anywhere and comment on it. Asks your member first, downloads Tonen's helper (the Tonen CLI) the first time, and may open their browser to sign in or confirm. Answers with the local site's address. It runs for the rest of this session.",
+      "Shares a dev server on this computer (localhost) as the Tonen project's local site, so the people its setting on its page in Tonen lets in open it from anywhere and comment on it. Asks your member first, downloads Tonen's helper (the Tonen CLI) the first time, and may open their browser to sign in or confirm. Answers with the local site's address. It runs for the rest of this session.",
     inputSchema: {
       type: "object",
       properties: {
@@ -287,7 +287,7 @@ async function prepare(
     const project = projectId ? `Tonen project ${projectId}'s` : "your Tonen project's";
     const answer = await $.ui
       .ask(
-        `${download}Share localhost:${port} as ${project} local site, for the rest of this session? Who gets in is its setting on the project's Setup tab.`,
+        `${download}Share localhost:${port} as ${project} local site, for the rest of this session? Who gets in is its setting on its page in Tonen.`,
         { options: [yes, "Don't share"], header: "Tonen" },
       )
       .catch(() => undefined);

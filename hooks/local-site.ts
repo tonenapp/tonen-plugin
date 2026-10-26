@@ -436,11 +436,11 @@ export function whoComesIn(access: string): string {
     case "anyone":
       return "anyone who opens it reads its comments, and comments after signing in";
     case "link":
-      return "the project's members and reviewers, and whoever opens the local site's own share link, which your member makes on the project's Setup tab, open it there and comment (Tonen asks them to sign in)";
+      return "the project's members and reviewers, and whoever opens the local site's own share link, which your member makes on the local site's page in Tonen, open it there and comment (Tonen asks them to sign in)";
     case "people":
       return "the project's members and reviewers open it there and comment (Tonen asks them to sign in)";
     default:
-      return "whoever its Setup tab lets in opens it there and comments";
+      return "whoever its page in Tonen lets in opens it there and comments";
   }
 }
 
