@@ -287,7 +287,7 @@ async function prepare(
     const project = projectId ? `Tonen project ${projectId}'s` : "your Tonen project's";
     const answer = await $.ui
       .ask(
-        `${download}Share localhost:${port} as ${project} local site, showing the branch you have checked out, for the rest of this session? Who gets in is its setting on its page in Tonen.`,
+        `${download}Share localhost:${port} as ${project} local site, showing the branch you have checked out, for the rest of this session? Only the project's members and the people added to that branch get in.`,
         { options: [yes, "Don't share"], header: "Tonen" },
       )
       .catch(() => undefined);

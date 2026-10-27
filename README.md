@@ -48,8 +48,8 @@ Connectors tab.
 - **`/tonen:add-reviewers`** asks people to comment: by email, on one of
   your project's branches (Tonen mails each a link to it, once you confirm it
   in your browser), or, for a branch at Anyone with the share link, that
-  branch's share link, which you make on the branch's page in Tonen (or
-  Claude asks for, once you confirm it) and send yourself.
+  branch's share link, which you make in Share on the project's page in
+  Tonen (or Claude asks for, once you confirm it) and send yourself.
 - **`/tonen:fix`** works through the comments one at a time: it finds the
   element in your code, fixes it, checks it, and tells the reviewer what
   changed.
