@@ -1,6 +1,6 @@
 {
   "name": "tonen",
-  "version": "2026.10.27",
+  "version": "2026.10.30",
   "description": "Comments on your running site, pinned to its elements: Claude fixes them, answers @Claude in them, and sets Tonen up.",
   "author": { "name": "Tonen", "url": "https://tonen.app" },
   "homepage": "https://tonen.app",
