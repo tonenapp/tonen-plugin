@@ -67,7 +67,7 @@ export const CLI_TOOL_SCHEMA = {
       type: "string",
       enum: ACCESS_CHOICES,
       description:
-        "init, addresses_add: who can comment on the branch, when this makes it (a new project's default branch, or a branch the project has no open one of); an address on a branch that exists takes that branch's. Ask your member once: do people outside your team use this address for real? Yes: `people` (only the people your member adds). Staging, a prototype, a pull request's preview: `anyone` (anyone who opens it, after confirming their email). `link` (anyone with the branch's own share link) only when your member asks for it. Left out: `people`; only addresses_add making a new branch at an address on this computer starts it at `anyone`.",
+        "init, addresses_add: who can comment on the branch, when this makes it (a new project's default branch, or a branch the project has no open one of); an address on a branch that exists takes that branch's. Left out: `anyone`, anyone who opens the site reads the comments and can comment after confirming their email. Use `people` (only the people your member adds) or `link` (anyone with the branch's own share link) when your member asks for it.",
     },
     framework: {
       type: "string",
