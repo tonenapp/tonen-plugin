@@ -1,8 +1,26 @@
 # Tonen for Claude
 
-[Tonen](https://tonen.app) lets people comment on your running site, each
-comment pinned to the element it's about, and lets Claude fix what they ask.
-This plugin brings Tonen into Claude Code and Claude's apps.
+[Tonen](https://tonen.app) helps designers, developers, teams and clients
+collaborate on running prototypes and websites. People try the real interactions,
+pin comments to elements and discuss the work together. This plugin brings those
+conversations into Claude, and helps Claude Code set up Tonen, share a local site
+and make changes when you ask.
+
+On the running site, people can also review together with live cursors and
+choose to follow someone's page, scroll position and open comment. They can
+pause, catch up or stop. Feedback stays in comment threads; requested fixes
+keep that context. Following happens in the site's bar, not through MCP tools.
+
+Try asking:
+
+- "Help my designer and me review this running prototype with Tonen."
+- "Show me the comments on our website and what still needs discussion."
+- "Help my client leave comments directly on this site."
+- "Help me show someone around this prototype with live cursors and following."
+- "Read this comment and implement the change I approve."
+
+Setting up a site and changing its code need Claude Code with access to the
+repository. In Claude's other apps, connect Tonen to read and answer comments.
 
 ## Install
 

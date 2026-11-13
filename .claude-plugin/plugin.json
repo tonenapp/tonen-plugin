@@ -1,7 +1,7 @@
 {
   "name": "tonen",
-  "version": "2026.11.11",
-  "description": "Comments on your running site, pinned to its elements: Claude fixes them, answers @Claude in them, and sets Tonen up.",
+  "version": "2026.11.13",
+  "description": "Collaborate on running prototypes and websites: collect feedback pinned to elements, walk through the work together with live cursors and following, and turn comments into agent-assisted fixes. Connect Claude to the discussion; set up Tonen and make requested changes in Claude Code.",
   "author": { "name": "Tonen", "url": "https://tonen.app" },
   "homepage": "https://tonen.app",
   "license": "Apache-2.0",
