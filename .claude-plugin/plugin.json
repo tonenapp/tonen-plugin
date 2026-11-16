@@ -1,6 +1,6 @@
 {
   "name": "tonen",
-  "version": "2026.11.13",
+  "version": "2026.11.16",
   "description": "Collaborate on running prototypes and websites: collect feedback pinned to elements, walk through the work together with live cursors and following, and turn comments into agent-assisted fixes. Connect Claude to the discussion; set up Tonen and make requested changes in Claude Code.",
   "author": { "name": "Tonen", "url": "https://tonen.app" },
   "homepage": "https://tonen.app",
