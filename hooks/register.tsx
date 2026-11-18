@@ -180,15 +180,17 @@ export const register: Register = (on) => {
       result: [
         {
           type: "text",
-          text: `Tonen's plugin now listens in the background for your member's mentions (@Claude) on ${where(projectId)}, and hands each one to you as a message of its own. Tell your member it's listening, and carry on: don't call wait_for_mention again. When they ask you to stop, call ${STOP}.`,
+          text: `Tonen's plugin now listens in the background for your member's mentions (@Claude) on ${where(projectId)}, and hands each one to you as a message of its own. Tell your member it's listening, and carry on: call wait_for_mention again only when they ask to listen on another project (or on all of theirs), and the plugin moves its listening there. When they ask you to stop, call ${STOP}.`,
         },
       ],
     };
   });
 
   // Claude learns what the plugin shares (`sharingSection`), so it doesn't
-  // run tonen share itself, and that it listens, so it never calls
-  // wait_for_mention or asks its member to run /mcp__tonen__listen.
+  // run tonen share itself, and that it listens, so it doesn't start a
+  // listener of its own or ask its member to run /mcp__tonen__listen. It
+  // still calls wait_for_mention when its member asks for another project:
+  // the plugin takes that call over and moves its listening (tool.call).
   on("prompt.compose", async ($, e, next) => {
     const composed = await next(e);
     const shared = sharingSection();
@@ -203,7 +205,7 @@ export const register: Register = (on) => {
         {
           id: "tonen:listening",
           scope: "session",
-          text: `Tonen's plugin listens for your member's mentions (@Claude) on ${where(target.projectId)} in this session and hands each one to you as a message of its own. Don't call wait_for_mention, offer /mcp__tonen__listen, or set CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS. When your member asks you to stop listening, call ${STOP}.`,
+          text: `Tonen's plugin listens for your member's mentions (@Claude) on ${where(target.projectId)} in this session and hands each one to you as a message of its own. Don't offer /mcp__tonen__listen or set CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS. Call wait_for_mention only when your member asks to listen on another project (its projectId), or on all of theirs (none): the plugin moves its listening there. When your member asks you to stop listening, call ${STOP}.`,
         },
       ],
     };
