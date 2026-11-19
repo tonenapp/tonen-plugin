@@ -409,8 +409,8 @@ async function projectsText($: EngineInterface, server: string): Promise<string 
 
 /**
  * The Tonen projects this session's repository names (`all`): its tonen.json's
- * (`named`) first, then its tracked files' script tags. Empty in a folder
- * without Tonen.
+ * (`named`) first, then the script tags in its files, untracked ones too, as
+ * the CLI's scan reads them. Empty in a folder without Tonen.
  */
 async function projectsHere(
   $: EngineInterface,
@@ -420,7 +420,17 @@ async function projectsHere(
   // session started.
   const root = (await git($, ["rev-parse", "--show-toplevel"]))?.trim() ?? (await $.session.cwd());
   const named = projectOfConfig(await $.fs.read(`${root}/tonen.json`).catch(() => undefined));
-  const found = await git($, ["grep", "-h", "-o", "-I", "-E", TAG_PATTERN, "--", ":/"]);
+  const found = await git($, [
+    "grep",
+    "--untracked",
+    "-h",
+    "-o",
+    "-I",
+    "-E",
+    TAG_PATTERN,
+    "--",
+    ":/",
+  ]);
   const tagged = found === undefined ? [] : projectsIn(found);
   return { named, all: [...new Set([...(named ? [named] : []), ...tagged])] };
 }
@@ -435,7 +445,7 @@ async function reportCheckedOut($: EngineInterface) {
   if (reporting || projectId === undefined) return;
   reporting = true;
   try {
-    const head = await git($, ["rev-parse", "--abbrev-ref", "HEAD"]);
+    const head = await git($, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
     const branch = head === undefined ? undefined : checkedOutIn(head);
     if (branch === undefined) return;
     if (reported?.projectId === projectId && reported.branch === branch) return;

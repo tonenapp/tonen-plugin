@@ -9,7 +9,7 @@
     {
       "name": "tonen",
       "description": "Collaborate on running prototypes and websites: collect feedback pinned to elements, walk through the work together with live cursors and following, and turn comments into agent-assisted fixes. Connect Claude to the discussion; set up Tonen and make requested changes in Claude Code.",
-      "version": "2026.11.18+1",
+      "version": "2026.11.19",
       "source": "./",
       "repository": "https://github.com/tonenapp/tonen-plugin"
     }

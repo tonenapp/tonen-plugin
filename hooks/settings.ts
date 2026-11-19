@@ -6,8 +6,9 @@
  * The person's settings with auto-update on for the `tonen` marketplace, or
  * undefined when there's nothing to ask: no `tonen` entry (installed some
  * other way), one on this computer (a checkout's `.tonen/claude-marketplace`,
- * which a restart rewrites), or one whose `autoUpdate` the person already set,
- * either way.
+ * which a restart rewrites), a preview's own `/claude/marketplace.json` (a
+ * `url` source, short-lived, so its one question stays for tonen.app's), or
+ * one whose `autoUpdate` the person already set, either way.
  */
 export function withAutoUpdate(settings: unknown): Record<string, unknown> | undefined {
   if (!isObject(settings)) return undefined;

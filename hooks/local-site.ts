@@ -28,6 +28,12 @@ export type ClosedReason = (typeof CLOSED_REASONS)[number];
  * while: Tonen or the network didn't answer, or answered something it
  * couldn't read. Every other code needs the person (a sign-in, a confirm, a
  * project) and ends the share, saying why.
+ *
+ * Wider than the CLI's own `CliError::passes`, which decides whether one run
+ * asks Tonen again: `io` and `bad_answer` end a run, but a new run can get
+ * past them (a share that stopped on a bug in tonen ends with `io` and asks
+ * to be run again). One that comes back at once, run after run, won't pass:
+ * the third in a row ends the share (`afterExit`).
  */
 export const PASSING_ERRORS = [
   "network",
@@ -214,13 +220,13 @@ export type AfterExit =
   | { kind: "sign_in" }
   | { kind: "done"; why: string };
 
-// When the helper is too old for its Tonen (`upgrade_required`), or can't
-// read what its Tonen answered (`bad_answer`), the CLI's own words say
-// `tonen upgrade`. That updates the person's terminal tonen
-// (~/.tonen/bin/tonen) and never the helper, which is the version the
-// plugin's cli.json names: the plugin is what's old.
-
-/** What Claude hears then: how to update the plugin. */
+/**
+ * What Claude hears when the helper is too old for its Tonen
+ * (`upgrade_required`) or can't read what its Tonen answered (`bad_answer`):
+ * how to update the plugin. The CLI's own words say `tonen upgrade`, which
+ * updates the person's terminal tonen (~/.tonen/bin/tonen) and never the
+ * helper, the version the plugin's cli.json names: the plugin is what's old.
+ */
 export const PLUGIN_TOO_OLD =
   "Tonen's plugin carries an older Tonen CLI than its Tonen takes now: update the plugin (`claude plugin update tonen@tonen`, which you may run for your member), then they restart Claude Code. Their own terminal's tonen, if they use one, updates with `tonen upgrade`";
 
@@ -253,7 +259,28 @@ export function personWords(code: string, message: string): string {
   return message;
 }
 
-export function afterExit(last: Line | undefined, port: number): AfterExit {
+/** A share's exits in a row that ended with the same error. */
+export type FailedRun = { code: string; times: number };
+
+/**
+ * The run after one more exit, whose `times` `afterExit` takes. An exit
+ * without an error ends it; another error, or a share that had stayed up a
+ * while (`steady`: `STEADY_MS` in share.ts), starts it over at one.
+ */
+export function failedAgain(
+  before: FailedRun | undefined,
+  code: string | undefined,
+  steady: boolean,
+): FailedRun | undefined {
+  if (code === undefined) return undefined;
+  return { code, times: !steady && before?.code === code ? before.times + 1 : 1 };
+}
+
+/**
+ * `times`: how many exits in a row, this one included, ended with this same
+ * error soon after `tonen share` started (`STEADY_MS` in share.ts).
+ */
+export function afterExit(last: Line | undefined, port: number, times: number): AfterExit {
   if (last?.type === "closed") {
     switch (last.reason) {
       case "stopped":
@@ -283,8 +310,11 @@ export function afterExit(last: Line | undefined, port: number): AfterExit {
     }
   }
   if (last?.type === "error") {
-    if (oneOf(PASSING_ERRORS, last.code)) {
-      return { kind: "again", why: personWords(last.code, last.message) };
+    const passing = oneOf(PASSING_ERRORS, last.code);
+    if (passing) {
+      const why = personWords(last.code, last.message);
+      const lasting = (passing === "io" || passing === "bad_answer") && times >= 3;
+      return { kind: lasting ? "done" : "again", why };
     }
     const code = oneOf(FINAL_ERRORS, last.code);
     if (code === "not_signed_in" || code === "signed_out") return { kind: "sign_in" };
@@ -297,10 +327,10 @@ export function afterExit(last: Line | undefined, port: number): AfterExit {
       };
     }
     // Every other final code ends the share in the CLI's own words (but a
-    // plugin that's too old, `personWords`), and so
-    // does a code that isn't the CLI's: the plugin's own `start` (the helper
-    // didn't run, and won't the next time either), or one from a newer CLI,
-    // which ends the share rather than start it again for good.
+    // plugin that's too old, `personWords`), and so does a code that isn't
+    // the CLI's: the plugin's own `start` (the helper didn't run, and won't
+    // the next time either), or one from a newer CLI, which ends the share
+    // rather than start it again for good.
     return { kind: "done", why: personWords(last.code, last.message) };
   }
   // No last line: it crashed or something killed it. Try again.

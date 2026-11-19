@@ -5,11 +5,9 @@
 // Claude asks by command and typed fields, never with an argv of its own: a
 // comment typed on a site can talk Claude into a call, so every value goes
 // to the CLI as a value (`--branch=<it>`, positionals after `--`), and no
-// flag it didn't name. Only the person's errands go through here (setting a
-// project up, its branches and addresses, its reviewers, a branch's share link,
-// reading its comments, the branch checked out here); a comment's work stays
-// on Tonen's MCP server, so people see it as Claude's ("Claude (Petar)"),
-// never the CLI's.
+// flag it didn't name. Only the person's errands go through here; a comment's
+// work stays on Tonen's MCP server, so people see it as Claude's, never the
+// CLI's.
 
 /** The plugin's tool that runs the Tonen CLI. */
 export const CLI_TOOL = "tonen_cli";
@@ -80,7 +78,7 @@ export const CLI_TOOL_SCHEMA = {
       type: "integer",
       minimum: 1,
       maximum: 100,
-      description: "comments: at most this many.",
+      description: "comments: at most this many (50 when left out).",
     },
     emails: {
       type: "array",

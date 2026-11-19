@@ -30,9 +30,10 @@ const PROJECT_ID = new RegExp(`^${PROJECT_ID_SHAPE}$`);
 /**
  * The pattern `git grep -E` finds Tonen's script tag by, in every form
  * Tonen's `install` writes it: `data-project="proj_…"` in HTML and JSX,
- * `"data-project": "proj_…"` in a Nuxt config.
+ * `"data-project": "proj_…"` in a Nuxt config, and in single quotes, which
+ * the CLI's scan takes too.
  */
-export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*"${PROJECT_ID_SHAPE}"`;
+export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*["']${PROJECT_ID_SHAPE}["']`;
 
 /**
  * The projects this repository's files load Tonen's bar for, each once, in
@@ -42,7 +43,7 @@ export const TAG_PATTERN = `data-project"?[[:space:]]*[:=][[:space:]]*"${PROJECT
  */
 export function projectsIn(grepOutput: string): string[] {
   const found = grepOutput.matchAll(
-    new RegExp(`data-project"?\\s*[:=]\\s*"(${PROJECT_ID_SHAPE})"`, "g"),
+    new RegExp(`data-project"?\\s*[:=]\\s*["'](${PROJECT_ID_SHAPE})["']`, "g"),
   );
   const ids = [...found].map((m) => m[1] ?? "");
   return [...new Set(ids.filter(Boolean))];
@@ -83,12 +84,13 @@ export function ownProject(
 }
 
 /**
- * The branch `git rev-parse --abbrev-ref HEAD` printed, or undefined when
- * there's none to report: a detached HEAD (git prints `HEAD`), or nothing.
+ * The branch `git symbolic-ref --quiet --short HEAD` printed, or undefined
+ * when it printed nothing. On a detached HEAD git exits 1, so there is no
+ * output to read.
  */
 export function checkedOutIn(gitOutput: string): string | undefined {
   const name = gitOutput.trim();
-  return name === "" || name === "HEAD" ? undefined : name;
+  return name === "" ? undefined : name;
 }
 
 /** A project's comments as `projects` counts them: open with nobody on it, in progress, fixed. */

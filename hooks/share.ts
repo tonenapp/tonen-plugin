@@ -6,9 +6,12 @@ import type {
   ProcessSpawnResult,
   Timer,
 } from "claude-code";
+import { commandLine } from "./cli-tool.ts";
 import { download, type Helper, HELPER_WAIT_MS, locate, megabytes, openPage } from "./helper.ts";
 import {
   afterExit,
+  failedAgain,
+  type FailedRun,
   type Line,
   LineSplitter,
   openWords,
@@ -36,12 +39,10 @@ import { hand, showStatus } from "./status.ts";
 // a call Claude was talked into (a mention typed on a site) could share any
 // port of this computer without a word to the person.
 //
-// The CLI's lines (`@tonen/contracts/cli`) drive it: `open` opens the browser
-// (a sign-in or a confirm), `ready` gives the address (Claude's answer, and
-// the band's line), `viewers` the band's count, a `warning` plain words for
-// the band and Claude. When the CLI exits it starts again after a back-off,
-// unless Tonen closed the local site for good or it needs the person
-// (`afterExit`). The session's end stops it.
+// The CLI's lines (`@tonen/contracts/cli`) drive it (`take`). When the CLI
+// exits it starts again after a back-off, unless Tonen closed the local site
+// for good, it needs the person, or the same lasting error ends it at once,
+// run after run (`afterExit`). The session's end stops it.
 
 /** The plugin's tool that shares a local site. */
 export const SHARE = "share_local_site";
@@ -82,6 +83,8 @@ type Share = Shared & {
   last: Line | undefined;
   /** Exits in a row without the local site staying up `STEADY_MS`, for the back-off. */
   failures: number;
+  /** The error those exits ended with, and how many times running: `afterExit` ends a lasting one. */
+  failedWith: FailedRun | undefined;
   /** When this run's `ready` came, on the session's clock; undefined until then. */
   upSince: number | undefined;
   restart: Timer | undefined;
@@ -216,6 +219,7 @@ export async function shareLocalSite(
     lines: new LineSplitter(),
     last: undefined,
     failures: 0,
+    failedWith: undefined,
     upSince: undefined,
     restart: undefined,
     clearNote: undefined,
@@ -343,20 +347,13 @@ export function sharingSection(): string | undefined {
 
 // Runs what the share's phase needs: `tonen login` first, or `tonen share`.
 function start($: EngineInterface, share: Share) {
-  const { path, server } = share.helper;
-  const argv =
+  const command =
     share.phase === "login"
-      ? [path, "login", "--json", "--server", server]
-      : [
-          path,
-          "share",
-          String(share.port),
-          "--json",
-          "--server",
-          server,
-          ...(share.projectId ? ["--project", share.projectId] : []),
-        ];
-  share.stream = $.process.spawn({ argv });
+      ? ["login"]
+      : ["share", String(share.port), ...(share.projectId ? [`--project=${share.projectId}`] : [])];
+  share.stream = $.process.spawn({
+    argv: commandLine(share.helper.path, share.helper.server, command),
+  });
   share.pending = undefined;
   share.lines = new LineSplitter();
   share.last = undefined;
@@ -393,7 +390,15 @@ async function drive(
       );
       return "ended";
     }
-    const next = afterExit(share.last, share.port);
+    // Only a share that stayed up a while starts the counts over: one the
+    // relay closes right after `ready` would otherwise start again every
+    // 2 s, for good.
+    const steady =
+      share.upSince !== undefined && (await $.clock.now()) - share.upSince >= STEADY_MS;
+    if (share.stopped) return "stopped";
+    const code = share.last?.type === "error" ? share.last.code : undefined;
+    share.failedWith = failedAgain(share.failedWith, code, steady);
+    const next = afterExit(share.last, share.port, share.failedWith?.times ?? 0);
     if (next.kind === "sign_in" && share.maySignIn) {
       // The share the person asked for signs in on its own, once; one that
       // started again by itself never opens a browser they didn't ask for.
@@ -403,11 +408,6 @@ async function drive(
       continue;
     }
     if (next.kind === "again") {
-      // Only a share that stayed up a while starts the back-off over: one
-      // the relay closes right after `ready` would otherwise start again
-      // every 2 s, for good.
-      const steady =
-        share.upSince !== undefined && (await $.clock.now()) - share.upSince >= STEADY_MS;
       share.failures = steady ? 1 : share.failures + 1;
       const ms = restartDelay(share.failures);
       await note($, share, `${next.why}, starting again in ${Math.round(ms / 1000)} s`, undefined);

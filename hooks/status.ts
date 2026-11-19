@@ -1,11 +1,12 @@
 import type { EngineInterface } from "claude-code";
 
-// What listening and sharing both hand the session: the plugin's status line,
-// and turns of their own (a mention, a local site that came up or ended).
+// What listening, sharing and `tonen_cli` hand the session: the plugin's
+// status line, and turns of their own (a mention, a local site that came up
+// or ended).
 //
 // Claude Code draws a plugin's status as a warning (⚠), so each part is only
 // what needs the person now, and one part's words never wipe out another's:
-// listening has one part, and each shared port its own.
+// listening has one part, each shared port and each CLI run its own.
 
 type Part = "listen" | `cli:${number}` | `share:${number}`;
 const parts = new Map<Part, string>();

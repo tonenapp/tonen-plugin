@@ -11,14 +11,12 @@ import {
   sha256In,
 } from "./local-site.ts";
 
-// Tonen's helper, the Tonen CLI, for the plugin's tools that run it
-// (`share_local_site` in share.ts, `tonen_cli` in cli.ts): found on this
-// computer or downloaded once from the Tonen this plugin came from, exactly
-// the binary its cli.json names (version and sha256), into
-// ~/.tonen/bin/tonen-<version>-<12 hex of its sha256>; and the pages of that
-// Tonen it opens in the browser. The name holds the bytes too: a version names
-// one binary on tonen.app, but a preview's later push can serve other bytes
-// under the same version.
+// Tonen's helper, the Tonen CLI, for the plugin's tools that run it: found on
+// this computer or downloaded once from the Tonen this plugin came from,
+// exactly the binary its cli.json names (version and sha256), and the pages of
+// that Tonen it opens in the browser. Its file name holds the sha256 too: a
+// version names one binary on tonen.app, but a preview's later push can serve
+// other bytes under the same version.
 
 /**
  * How long Claude's call waits for the helper: a first run waits for the
@@ -153,10 +151,10 @@ export async function download(
 // Removes the helpers of other versions this plugin downloaded before (each
 // Tonen release, and in development each rebuild, is a new one): a running
 // one keeps its file open, and a share that still needs one downloads it
-// again before its next start (`startAgain` in share.ts). install.sh's `tonen` is the
-// person's own and stays. So do downloads under way; one a session's end cut
-// off (its `finally` never ran) goes once it's an hour old, far past curl's
-// five minutes.
+// again before its next start (`startAgain` in share.ts). install.sh's
+// `tonen` is the person's own and stays, as do downloads under way; one a
+// session's end cut off (its `finally` never ran) goes once it's an hour old,
+// far past curl's five minutes.
 async function prune($: EngineInterface, bin: string, keep: string) {
   const entries = await $.fs.list(bin).catch(() => []);
   const old = entries
@@ -202,7 +200,7 @@ export const megabytes = (bytes: number) => Math.max(1, Math.round(bytes / 1_000
 const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
 
 /** A file's JSON, or undefined when it's missing or isn't JSON. */
-async function readJson($: EngineInterface, path: string): Promise<unknown> {
+export async function readJson($: EngineInterface, path: string): Promise<unknown> {
   try {
     const json: unknown = JSON.parse(await $.fs.read(path));
     return json;

@@ -1,17 +1,17 @@
 import type { EngineInterface } from "claude-code";
+import { readJson } from "./helper.ts";
 import { withAutoUpdate } from "./settings.ts";
 
 // Keeping the plugin up to date. Claude Code updates a marketplace's plugins
-// by itself only when that marketplace's auto-update is on, and it's off for
-// every marketplace but Anthropic's, Tonen's too; no field in the plugin turns
-// it on. So the plugin asks its person once, after the first turn of their
-// first session (not as it opens, where Enter on a first prompt would answer
-// it), and on a
-// yes sets `autoUpdate` on the `tonen` entry that `claude plugin marketplace
-// add` wrote into their settings (`extraKnownMarketplaces`), the key Claude
-// Code's own toggle under /plugin writes there too. Claude Code then refreshes
-// the marketplace in the background a while after a session's first message,
-// and the new version loads with the next session.
+// only when that marketplace's auto-update is on, which is off for every
+// marketplace but Anthropic's, and no field in the plugin turns it on. So the
+// plugin asks its person once, after the first turn of their first session
+// (not as it opens, where Enter on a first prompt would answer it), and on a
+// yes sets `autoUpdate` on the `tonen` entry `claude plugin marketplace add`
+// wrote into their settings' `extraKnownMarketplaces`, the key Claude Code's
+// own toggle under /plugin writes. Claude Code then refreshes the marketplace
+// in the background a while after a session's first message, and the new
+// version loads with the next session.
 
 /** Where the plugin keeps that it asked (`$.store`, across sessions): once, whatever the answer. */
 const ASKED = "autoUpdateAsked";
@@ -60,14 +60,4 @@ async function settingsPath($: EngineInterface): Promise<string | undefined> {
   if (dir) return `${dir}/settings.json`;
   const home = await $.env.get("HOME");
   return home ? `${home}/.claude/settings.json` : undefined;
-}
-
-/** A file's JSON, or undefined when it's missing or isn't JSON. */
-async function readJson($: EngineInterface, path: string): Promise<unknown> {
-  try {
-    const json: unknown = JSON.parse(await $.fs.read(path));
-    return json;
-  } catch {
-    return undefined;
-  }
 }

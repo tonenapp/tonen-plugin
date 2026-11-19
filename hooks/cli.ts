@@ -17,23 +17,17 @@ import { download, type Helper, HELPER_WAIT_MS, locate, megabytes, openPage } fr
 import { helperWords, LineSplitter, readLine } from "./local-site.ts";
 import { hand, showStatus } from "./status.ts";
 
-// `tonen_cli`: Claude runs the Tonen CLI for its member's errands (setting a
-// project up, its branches and addresses, its reviewers, a branch's share
-// link), with `--json`, through
-// the plugin rather than a shell: no PATH to find, no permission prompt for
-// each call, and the CLI exactly as the plugin's cli.json names it, checked
-// as `share_local_site` checks it (helper.ts). cli-tool.ts holds what Claude
-// may ask and how its answer reads.
+// `tonen_cli`: Claude runs the Tonen CLI with `--json` for its member's
+// errands through the plugin rather than a shell: no PATH to find, no
+// permission prompt for each call, and exactly the CLI the plugin's cli.json
+// names (helper.ts). cli-tool.ts holds what Claude may ask and how its answer
+// reads.
 //
 // The CLI's `open` lines open the browser, on this Tonen only: its sign-in
 // (a first call signs this computer in by itself, once) and the /confirm
-// page for what only a person may do, which is the security boundary.
-// Claude waits up to 100 s; past that the plugin hands it the answer in a
-// message once the person is done in the browser.
-//
-// The same helper reports the branch the session's repository has checked
-// out (`reportBranch`), which the plugin does by itself: quietly, without a
-// download, a sign-in or a page in the browser.
+// page for what only a person may do, which is the security boundary. Past
+// `HELPER_WAIT_MS` the plugin hands Claude the answer in a message once the
+// person is done in the browser.
 
 type Stream = HookStream<ProcessSpawnChunk, ProcessSpawnResult>;
 
@@ -48,7 +42,6 @@ let downloadAgreed = false;
 let runs = 0;
 const statusPart = (): `cli:${number}` => `cli:${++runs}`;
 
-/** Registers `tonen_cli`. */
 export async function registerCliTool($: EngineInterface) {
   await $.tool.register({
     name: CLI_TOOL,
